@@ -143,7 +143,7 @@ class WeWorkInformer(Informer):
 
         requests.post(self.robot_url, data=body)
 
-    def send_message(self, finished_type):
+    def send_finished_message(self, finished_type):
         date_str = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         self.send_message(f'{date_str}\n{finished_type} 下载完成...')
 
