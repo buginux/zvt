@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+
+import datetime
 import email
 import json
 import logging
@@ -131,6 +133,28 @@ class WechatInformer(Informer):
         }
 
         return the_json
+
+
+class WeWorkInformer(Informer):
+    robot_url = 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=38ebcf2b-8b10-4bd6-af90-5602637ac291'
+
+    def send_message(self, msg):
+        body = self.body_with_content(msg)
+
+        requests.post(self.robot_url, data=body)
+
+    def send_message(self, finished_type):
+        date_str = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        self.send_message(f'{date_str}\n{finished_type} 下载完成...')
+
+    @staticmethod
+    def body_with_content(content):
+        msg = {
+            'msgtype': 'markdown',
+            'markdown': {'content': content}
+        }
+
+        return json.dumps(msg)
 
 
 if __name__ == '__main__':
