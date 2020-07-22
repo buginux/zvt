@@ -32,8 +32,6 @@ def run():
     while True:
         try:
             EastmoneyChinaStockDetailRecorder(sleeping_time=0.0).run()
-            EastmoneyChinaBlockRecorder(sleeping_time=0.0).run()
-            EastmoneyChinaBlockStockRecorder(sleeping_time=0.0).run()
 
             SinaChinaBlockRecorder().run()
             SwChinaBlockRecorder().run()
