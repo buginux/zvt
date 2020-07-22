@@ -35,8 +35,8 @@ def run():
 
             SinaChinaBlockRecorder().run()
             SwChinaBlockRecorder().run()
-            SinaChinaBlockStockRecorder().run()
-            SwChinaBlockStockRecorder().run()
+            SinaChinaBlockStockRecorder(sleeping_time=2.0).run()
+            SwChinaBlockStockRecorder(sleeping_time=2.0).run()
 
             wework.send_finished_message('股票元数据')
             err_count = 0

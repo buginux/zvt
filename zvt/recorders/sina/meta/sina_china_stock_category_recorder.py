@@ -5,6 +5,8 @@ import demjson
 import pandas as pd
 import requests
 
+from tenacity import retry, stop_after_attempt, wait_fixed
+
 from zvt.contract.api import df_to_db
 from zvt.contract.recorder import Recorder, TimeSeriesDataRecorder
 from zvt.utils.time_utils import now_pd_timestamp
@@ -117,7 +119,7 @@ class SinaChinaBlockStockRecorder(TimeSeriesDataRecorder):
 
     def record(self, entity, start, end, size, timestamps):
         for page in range(1, 5):
-            resp = requests.get(self.category_stocks_url.format(page, entity.code))
+            resp = self.retry_get_block_stocks(self.category_stocks_url.format(page, entity.code))
             try:
                 if resp.text == 'null' or resp.text is None:
                     break
@@ -150,6 +152,10 @@ class SinaChinaBlockStockRecorder(TimeSeriesDataRecorder):
             except Exception as e:
                 self.logger.error("error:,resp.text:", e, resp.text)
             self.sleep()
+
+    @retry(stop=stop_after_attempt(60), wait=wait_fixed(10))
+    def retry_get_block_stocks(self, url):
+        return requests.get(url)
 
 
 class SwChinaBlockStockRecorder(SinaChinaBlockStockRecorder):
