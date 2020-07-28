@@ -5,11 +5,11 @@ import pandas as pd
 
 from tenacity import retry, stop_after_attempt, wait_fixed
 from zvt.contract.recorder import TimeSeriesDataRecorder
-from zvt.utils.time_utils import to_pd_timestamp, TIME_FORMAT_DAY
+from zvt.utils.time_utils import TIME_FORMAT_DAY
 from zvt.domain import Stock, Announcement
 
 
-class JoudouStockAnnouncementrecorder(TimeSeriesDataRecorder):
+class JoudouStockAnnouncementRecorder(TimeSeriesDataRecorder):
     entity_provider = 'eastmoney'
     entity_schema = Stock
 
@@ -19,7 +19,7 @@ class JoudouStockAnnouncementrecorder(TimeSeriesDataRecorder):
     url = 'https://m.joudou.com/p/www/stockinfogate/commonapi?name=summary&secucode={}.{}'
     
     def __init__(self, codes=None, exchanges=None):
-        super(JoudouStockAnnouncementrecorder, self).__init__(codes=codes, exchanges=exchanges,
+        super(JoudouStockAnnouncementRecorder, self).__init__(codes=codes, exchanges=exchanges,
                                                               force_update=True, sleeping_time=0.0)
 
     def generate_domain_id(self, entity, original_data, time_fmt=TIME_FORMAT_DAY):
@@ -53,9 +53,9 @@ class JoudouStockAnnouncementrecorder(TimeSeriesDataRecorder):
         return buy_sell
 
 
-__all__ = ['JoudouStockAnnouncementrecorder']
+__all__ = ['JoudouStockAnnouncementRecorder']
 
 if __name__ == '__main__':
-    JoudouStockAnnouncementrecorder(codes=['000001', '000002']).run()
+    JoudouStockAnnouncementRecorder(codes=['000001', '000002']).run()
 
 
