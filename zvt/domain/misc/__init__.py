@@ -2,3 +2,4 @@
 from zvt.domain.misc.holder import *
 from zvt.domain.misc.money_flow import *
 from zvt.domain.misc.overall import *
+from zvt.domain.misc.announcement import *
