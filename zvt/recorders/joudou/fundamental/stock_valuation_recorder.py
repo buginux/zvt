@@ -31,9 +31,8 @@ class JoudouChinaStockValuationRecorder(TimeSeriesDataRecorder):
         end_timestamp = to_time_str(end, fmt=TIME_FORMAT_DAY1)
 
         url = self.url.format(exchange_flag, entity.code, start_timestamp, end_timestamp)
-        response = requests.get(url)
+        df = self.query_netease_valuation(url)
 
-        df = pd.read_csv(io.BytesIO(response.content), encoding='GBK')
         if df.empty:
             return []
 
@@ -87,6 +86,13 @@ class JoudouChinaStockValuationRecorder(TimeSeriesDataRecorder):
                         data.pcf = df.loc[data.timestamp, 'pcf']
                 self.session.commit()
             self.logger.info(f'({entity.code}{entity.name})估值更新完成...')
+
+    @staticmethod
+    @retry(stop=stop_after_attempt(20), wait=wait_fixed(10))
+    def query_netease_valuation(url):
+        response = requests.get(url)
+        df = pd.read_csv(io.BytesIO(response.content), encoding='GBK')
+        return df
 
     @staticmethod
     @retry(stop=stop_after_attempt(20), wait=wait_fixed(10))
