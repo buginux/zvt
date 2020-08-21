@@ -23,14 +23,25 @@ def ema(s, window=12):
     return s.ewm(span=window, adjust=False, min_periods=window).mean()
 
 
-def macd(s, slow=26, fast=12, n=9, return_type='se'):
+def macd(s, slow=26, fast=12, n=9, return_type='df', normal=False):
+    # 短期均线
     ema_fast = ema(s, window=fast)
-
+    # 长期均线
     ema_slow = ema(s, window=slow)
 
+    # 短期均线 - 长期均线 = 趋势的力度
     diff = ema_fast - ema_slow
+    # 力度均线
     dea = diff.ewm(span=n, adjust=False).mean()
+
+    # 力度 的变化
     m = (diff - dea) * 2
+
+    # normal it
+    if normal:
+        diff = diff / s
+        dea = dea / s
+        m = m / s
 
     if return_type == 'se':
         return diff, dea, m
@@ -60,7 +71,7 @@ class MaTransformer(Transformer):
 
 
 def point_in_range(point, range):
-    return point >= range[0] and point <= range[1]
+    return range[0] <= point <= range[1]
 
 
 def intersect_ranges(range_list):
@@ -94,6 +105,7 @@ class IntersectTransformer(Transformer):
 
     def transform(self, input_df) -> pd.DataFrame:
         if self.kdata_overlap > 0:
+            # 没有重叠，区间就是(0,0)
             input_df['overlap'] = [(0, 0)] * len(input_df.index)
 
             def cal_overlap(s):
@@ -101,6 +113,7 @@ class IntersectTransformer(Transformer):
                 low = input_df.loc[s.index, 'low']
                 intersection = intersect_ranges(list(zip(low.to_list(), high.to_list())))
                 if intersection:
+                    # 设置column overlap为intersection,即重叠区间
                     input_df.at[s.index[-1], 'overlap'] = intersection
                 return 0
 
@@ -154,11 +167,12 @@ class MaAndVolumeTransformer(Transformer):
 
 
 class MacdTransformer(Transformer):
-    def __init__(self, slow=26, fast=12, n=9) -> None:
+    def __init__(self, slow=26, fast=12, n=9, normal=False) -> None:
         super().__init__()
         self.slow = slow
         self.fast = fast
         self.n = n
+        self.normal = normal
 
         self.indicators.append('diff')
         self.indicators.append('dea')
@@ -166,7 +180,7 @@ class MacdTransformer(Transformer):
 
     def transform(self, input_df) -> pd.DataFrame:
         macd_df = input_df.groupby(level=0)['close'].apply(
-            lambda x: macd(x, slow=self.slow, fast=self.fast, n=self.n, return_type='df'))
+            lambda x: macd(x, slow=self.slow, fast=self.fast, n=self.n, return_type='df', normal=self.normal))
         input_df = pd.concat([input_df, macd_df], axis=1, sort=False)
         return input_df
 
