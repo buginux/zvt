@@ -17,6 +17,7 @@ from zvt.utils.time_utils import to_time_str, to_pd_timestamp
 class BaseChinaStockFinanceRecorder(EastmoneyTimestampsDataRecorder):
     finance_report_type = None
     data_type = 1
+    report_type = 1
 
     timestamps_fetching_url = 'https://emh5.eastmoney.com/api/CaiWuFenXi/GetCompanyReportDateList'
     timestamp_list_path_fields = ['CompanyReportDateList']
@@ -46,7 +47,7 @@ class BaseChinaStockFinanceRecorder(EastmoneyTimestampsDataRecorder):
         }
 
         if self.finance_report_type == 'LiRunBiaoList' or self.finance_report_type == 'XianJinLiuLiangBiaoList':
-            param['ReportType'] = 1
+            param['ReportType'] = self.report_type
 
         timestamp_json_list = call_eastmoney_api(url=self.timestamps_fetching_url,
                                                  path_fields=self.timestamp_list_path_fields,
@@ -80,7 +81,7 @@ class BaseChinaStockFinanceRecorder(EastmoneyTimestampsDataRecorder):
             }
 
         if self.finance_report_type == 'LiRunBiaoList' or self.finance_report_type == 'XianJinLiuLiangBiaoList':
-            param['reportType'] = 1
+            param['reportType'] = self.report_type
 
         return param
 
