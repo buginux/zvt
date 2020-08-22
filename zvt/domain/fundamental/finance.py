@@ -451,14 +451,12 @@ class BalanceSheet(FinanceBase, Mixin):
     # 负债和股东权益总计
 
 
-class IncomeStatement(FinanceBase, Mixin):
+class IncomeStatementCommon(Mixin):
 
     @classmethod
     def important_cols(cls):
         return ['operating_income', 'investment_income', 'total_operating_costs', 'total_profits', 'sales_costs',
                 'managing_costs', 'financing_costs']
-
-    __tablename__ = 'income_statement'
 
     provider = Column(String(length=32))
     code = Column(String(length=32))
@@ -969,6 +967,17 @@ class CashFlowStatementSeasonal(CashFlowStatementCommon, FinanceBase):
     __tablename__ = 'cash_flow_statement_seasonal'
 
 
+class IncomeStatement(IncomeStatementCommon, FinanceBase):
+    """利润表"""
+    __tablename__ = 'income_statement'
+
+
+class IncomeStatementSeasonal(IncomeStatementCommon, FinanceBase):
+    """单季度利润表"""
+    __tablename__ = 'income_statement_seasonal'
+
+
 register_schema(providers=['eastmoney'], db_name='finance', schema_base=FinanceBase)
 
-__all__ = ['FinanceFactor', 'BalanceSheet', 'IncomeStatement', 'CashFlowStatement', 'CashFlowStatementSeasonal']
+__all__ = ['FinanceFactor', 'BalanceSheet', 'IncomeStatement', 'IncomeStatementSeasonal',
+           'CashFlowStatement', 'CashFlowStatementSeasonal']

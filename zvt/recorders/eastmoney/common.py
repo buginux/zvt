@@ -137,7 +137,7 @@ class BaseEastmoneyRecorder(object):
 
 
 class EastmoneyTimestampsDataRecorder(BaseEastmoneyRecorder, TimestampsDataRecorder):
-    entity_provider = 'joinquant'
+    entity_provider = 'eastmoney'
     entity_schema = StockDetail
 
     provider = 'eastmoney'
