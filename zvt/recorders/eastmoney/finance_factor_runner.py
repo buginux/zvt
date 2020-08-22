@@ -38,7 +38,7 @@ def run():
 
 
 if __name__ == '__main__':
-    init_log('eastmoney_finance_balance_sheet.log')
+    init_log('eastmoney_finance_factor.log')
 
     run()
 

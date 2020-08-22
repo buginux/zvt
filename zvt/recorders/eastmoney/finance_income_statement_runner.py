@@ -40,7 +40,7 @@ def run():
 
 
 if __name__ == '__main__':
-    init_log('eastmoney_balance_sheet_income_statement.log')
+    init_log('eastmoney_income_statement.log')
 
     run()
 
