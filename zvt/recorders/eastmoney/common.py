@@ -3,6 +3,8 @@ import logging
 
 import requests
 
+from tenacity import retry, wait_fixed, stop_after_attempt
+
 from zvt.contract.api import get_data_count, get_data
 from zvt.contract.recorder import TimestampsDataRecorder, TimeSeriesDataRecorder
 from zvt.utils.time_utils import to_pd_timestamp
@@ -65,6 +67,7 @@ def company_type_flag(security_item):
     return ct
 
 
+@retry(wait=wait_fixed(20), stop=stop_after_attempt(10))
 def call_eastmoney_api(url=None, method='post', param=None, path_fields=None):
     if method == 'post':
         resp = requests.post(url, json=param)
