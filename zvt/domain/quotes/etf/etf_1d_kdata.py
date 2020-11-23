@@ -14,4 +14,5 @@ class Etf1dKdata(KdataBase, EtfKdataCommon):
 
 register_schema(providers=['sina'], db_name='etf_1d_kdata', schema_base=KdataBase)
 
+# the __all__ is generated
 __all__ = ['Etf1dKdata']

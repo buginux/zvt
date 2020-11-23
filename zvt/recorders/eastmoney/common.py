@@ -51,7 +51,7 @@ def company_type_flag(security_item):
         if company_type == CompanyType.yinhang:
             return "3"
     except Exception as e:
-        logger.exception(e)
+        logger.warning(e)
 
     param = {
         "color": "w",

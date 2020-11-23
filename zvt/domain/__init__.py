@@ -47,11 +47,34 @@ class CompanyType(enum.Enum):
     yinhang = 'yinhang'
     quanshang = 'quanshang'
 
+# the __all__ is generated
+__all__ = ['BlockCategory', 'ReportPeriod', 'InstitutionalInvestor', 'CompanyType']
 
-# make sure import all the domain schemas before using them
-from zvt.domain.trader_info import *
-from zvt.domain.meta import *
-from zvt.domain.fundamental import *
-from zvt.domain.misc import *
-from zvt.domain.quotes import *
-from zvt.domain.factors import *
+# __init__.py structure:
+# common code of the package
+# export interface in __all__ which contains __all__ of its sub modules
+
+# import all from submodule misc
+from .misc import *
+from .misc import __all__ as _misc_all
+__all__ += _misc_all
+
+# import all from submodule quotes
+from .quotes import *
+from .quotes import __all__ as _quotes_all
+__all__ += _quotes_all
+
+# import all from submodule meta
+from .meta import *
+from .meta import __all__ as _meta_all
+__all__ += _meta_all
+
+# import all from submodule fundamental
+from .fundamental import *
+from .fundamental import __all__ as _fundamental_all
+__all__ += _fundamental_all
+
+# import all from submodule trader_info
+from .trader_info import *
+from .trader_info import __all__ as _trader_info_all
+__all__ += _trader_info_all

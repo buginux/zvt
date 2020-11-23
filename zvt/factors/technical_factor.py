@@ -3,10 +3,10 @@ from typing import List, Union
 import numpy as np
 import pandas as pd
 
-from zvt.api import AdjustType
-from zvt.api.quote import get_kdata_schema, Stock
-from zvt.contract import IntervalLevel, EntityMixin
-from zvt.factors.algorithm import MacdTransformer
+from zvt.api.quote import get_kdata_schema
+from zvt.contract import IntervalLevel, EntityMixin, AdjustType
+from zvt.domain import Stock
+from zvt.factors.algorithm import MacdTransformer, consecutive_count
 from zvt.factors.factor import Factor, Transformer, Accumulator
 
 
@@ -21,7 +21,7 @@ class TechnicalFactor(Factor):
                  the_timestamp: Union[str, pd.Timestamp] = None,
                  start_timestamp: Union[str, pd.Timestamp] = None,
                  end_timestamp: Union[str, pd.Timestamp] = None,
-                 columns: List = ['id', 'entity_id', 'timestamp', 'level', 'open', 'close', 'high', 'low'],
+                 columns: List = None,
                  filters: List = None,
                  order: object = None,
                  limit: int = None,
@@ -37,6 +37,8 @@ class TechnicalFactor(Factor):
                  need_persist: bool = False,
                  dry_run: bool = False,
                  adjust_type: Union[AdjustType, str] = None) -> None:
+        if columns is None:
+            columns = ['id', 'entity_id', 'timestamp', 'level', 'open', 'close', 'high', 'low']
         self.adjust_type = adjust_type
         self.data_schema = get_kdata_schema(entity_schema.__name__, level=level, adjust_type=adjust_type)
 
@@ -68,7 +70,7 @@ class KeepBullFactor(BullFactor):
                  entity_ids: List[str] = None, exchanges: List[str] = None, codes: List[str] = None,
                  the_timestamp: Union[str, pd.Timestamp] = None, start_timestamp: Union[str, pd.Timestamp] = None,
                  end_timestamp: Union[str, pd.Timestamp] = None,
-                 columns: List = ['id', 'entity_id', 'timestamp', 'level', 'open', 'close', 'high', 'low'],
+                 columns=None,
                  filters: List = None, order: object = None, limit: int = None,
                  level: Union[str, IntervalLevel] = IntervalLevel.LEVEL_1DAY, category_field: str = 'entity_id',
                  time_field: str = 'timestamp', computing_window: int = None, keep_all_timestamp: bool = False,
@@ -90,6 +92,28 @@ class KeepBullFactor(BullFactor):
         self.result_df['score'] = df
 
 
+# 金叉 死叉 持续时间 切换点
+class LiveOrDeadFactor(TechnicalFactor):
+    pattern = [-5, 1]
+
+    def do_compute(self):
+        super().do_compute()
+        # 白线在黄线之上
+        s = self.factor_df['diff'] > self.factor_df['dea']
+        # live=True 白线>黄线
+        # live=False 白线<黄线
+        self.factor_df['live'] = s.to_frame()
+        consecutive_count(self.factor_df, 'live', pattern=self.pattern)
+        self.result_df = self.factor_df[['score']]
+
+
+class GoldCrossFactor(LiveOrDeadFactor):
+    def do_compute(self):
+        super().do_compute()
+        s = self.factor_df['live'] == 1
+        self.result_df = s.to_frame(name='score')
+
+
 if __name__ == '__main__':
     factor = TechnicalFactor(codes=['000338', '000778'],
                              start_timestamp='2019-01-01',
@@ -105,3 +129,5 @@ if __name__ == '__main__':
 
     print(factor.factor_df.loc[('stock_sz_000338',)])
     print(factor.factor_df.loc[('stock_sz_000778',)])
+# the __all__ is generated
+__all__ = ['TechnicalFactor', 'BullFactor', 'KeepBullFactor', 'LiveOrDeadFactor', 'GoldCrossFactor']
