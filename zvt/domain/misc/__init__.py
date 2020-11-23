@@ -20,4 +20,3 @@ __all__ += _money_flow_all
 from .holder import *
 from .holder import __all__ as _holder_all
 __all__ += _holder_all
->>>>>>> gh_master
