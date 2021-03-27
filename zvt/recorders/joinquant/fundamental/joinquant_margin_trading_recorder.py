@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 
 import pandas as pd
-
 from jqdatapy.api import get_mtss
+
 from zvt.contract.api import df_to_db
 from zvt.contract.recorder import TimeSeriesDataRecorder
 from zvt.domain import Stock, MarginTrading
@@ -20,10 +20,10 @@ class MarginTradingRecorder(TimeSeriesDataRecorder):
 
     data_schema = MarginTrading
 
-    def __init__(self, entity_type='stock', exchanges=None, entity_ids=None, codes=None, batch_size=10,
+    def __init__(self, entity_type='stock', exchanges=None, entity_ids=None, codes=None, day_data=True, batch_size=10,
                  force_update=False, sleeping_time=5, default_size=2000, real_time=False, fix_duplicate_way='add',
                  start_timestamp=None, end_timestamp=None, close_hour=0, close_minute=0) -> None:
-        super().__init__(entity_type, exchanges, entity_ids, codes, batch_size, force_update, sleeping_time,
+        super().__init__(entity_type, exchanges, entity_ids, codes, day_data, batch_size, force_update, sleeping_time,
                          default_size, real_time, fix_duplicate_way, start_timestamp, end_timestamp, close_hour,
                          close_minute)
 
@@ -44,7 +44,7 @@ class MarginTradingRecorder(TimeSeriesDataRecorder):
         return None
 
 
-__all__ = ['MarginTradingRecorder']
-
 if __name__ == '__main__':
     MarginTradingRecorder(codes=['000004']).run()
+# the __all__ is generated
+__all__ = ['MarginTradingRecorder']

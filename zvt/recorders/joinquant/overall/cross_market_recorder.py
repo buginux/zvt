@@ -1,4 +1,5 @@
 from jqdatapy.api import run_query
+
 from zvt.contract.recorder import TimeSeriesDataRecorder
 from zvt.domain import Index, CrossMarketSummary
 from zvt.utils.time_utils import to_time_str
@@ -24,7 +25,7 @@ class CrossMarketSummaryRecorder(TimeSeriesDataRecorder):
         # 310004	港股通（深）
 
         codes = ['310001', '310002', '310003', '310004']
-        super().__init__('index', ['cn'], None, codes, batch_size,
+        super().__init__('index', ['sz'], None, codes, day_data, batch_size,
                          force_update, sleeping_time,
                          default_size, real_time, fix_duplicate_way)
 
@@ -61,7 +62,7 @@ class CrossMarketSummaryRecorder(TimeSeriesDataRecorder):
         return None
 
 
-__all__ = ['CrossMarketSummaryRecorder']
-
 if __name__ == '__main__':
     CrossMarketSummaryRecorder(batch_size=30).run()
+# the __all__ is generated
+__all__ = ['CrossMarketSummaryRecorder']

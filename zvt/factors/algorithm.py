@@ -2,7 +2,7 @@
 
 import pandas as pd
 
-from zvt.factors.factor import Scorer, Transformer
+from zvt.contract.factor import Scorer, Transformer
 from zvt.utils.pd_utils import normal_index_df
 
 
@@ -20,7 +20,14 @@ def ema(s, window=12):
     return s.ewm(span=window, adjust=False, min_periods=window).mean()
 
 
-def macd(s, slow=26, fast=12, n=9, return_type='df', normal=False):
+def live_or_dead(x):
+    if x:
+        return 1
+    else:
+        return -1
+
+
+def macd(s, slow=26, fast=12, n=9, return_type='df', normal=False, count_live_dead=False):
     # 短期均线
     ema_fast = ema(s, window=fast)
     # 长期均线
@@ -40,9 +47,19 @@ def macd(s, slow=26, fast=12, n=9, return_type='df', normal=False):
         dea = dea / s
         m = m / s
 
+    if count_live_dead:
+        live = (diff > dea).apply(lambda x: live_or_dead(x))
+        bull = (diff > 0) & (dea > 0)
+        live_count = live * (live.groupby((live != live.shift()).cumsum()).cumcount() + 1)
+
     if return_type == 'se':
+        if count_live_dead:
+            return diff, dea, m, live, bull, live_count
         return diff, dea, m
     else:
+        if count_live_dead:
+            return pd.DataFrame(
+                {'diff': diff, 'dea': dea, 'macd': m, 'live': live, 'bull': bull, 'live_count': live_count})
         return pd.DataFrame({'diff': diff, 'dea': dea, 'macd': m})
 
 
@@ -57,6 +74,9 @@ def point_in_range(point: float, range: tuple):
 
 
 def intersect_ranges(range_list):
+    if len(range_list) == 1:
+        return range_list[0]
+
     result = intersect(range_list[0], range_list[1])
     for range_i in range_list[2:]:
         result = intersect(result, range_i)
@@ -96,65 +116,23 @@ class RankScorer(Scorer):
         return result_df
 
 
-def consecutive_count(input_df, col, pattern=[-5, 1]):
-    for entity_id, df in input_df.groupby(level=0):
-        count = 0
-
-        negative = 0
-
-        current_state = None
-        for index, item in df[col].iteritems():
-            if item:
-                state = 'up'
-            else:
-                state = 'down'
-
-            # 计算维持状态（'up','down'）的 次数
-            if current_state == state:
-                if count > 0:
-                    count = count + 1
-                else:
-                    count = count - 1
-                    negative = count
-            else:
-                current_state = state
-
-                if current_state == 'up':
-                    count = 1
-                else:
-                    count = -1
-                    negative = count
-
-            if (count >= pattern[1]) and (negative <= pattern[0]):
-                input_df.loc[index, 'score'] = True
-            else:
-                input_df.loc[index, 'score'] = True
-
-            # 设置目前状态
-            input_df.loc[index, 'count'] = count
-
-        print(f'consecutive_count for {entity_id}')
-
-
 class MaTransformer(Transformer):
     def __init__(self, windows=[5, 10], cal_change_pct=False) -> None:
         super().__init__()
         self.windows = windows
         self.cal_change_pct = cal_change_pct
 
-    def transform(self, input_df) -> pd.DataFrame:
+    def transform_one(self, entity_id, df: pd.DataFrame) -> pd.DataFrame:
         if self.cal_change_pct:
-            input_df['change_pct'] = input_df['close'].pct_change()
+            df['change_pct'] = df['close'].pct_change()
 
         for window in self.windows:
             col = 'ma{}'.format(window)
             self.indicators.append(col)
 
-            ma_df = input_df['close'].groupby(level=0).rolling(window=window, min_periods=window).mean()
-            ma_df = ma_df.reset_index(level=0, drop=True)
-            input_df[col] = ma_df
+            df[col] = df['close'].rolling(window=window, min_periods=window).mean()
 
-        return input_df
+        return df
 
 
 class IntersectTransformer(Transformer):
@@ -226,26 +204,29 @@ class MaAndVolumeTransformer(Transformer):
 
 
 class MacdTransformer(Transformer):
-    def __init__(self, slow=26, fast=12, n=9, normal=False) -> None:
+    def __init__(self, slow=26, fast=12, n=9, normal=False, count_live_dead=False) -> None:
         super().__init__()
         self.slow = slow
         self.fast = fast
         self.n = n
         self.normal = normal
+        self.count_live_dead = count_live_dead
 
         self.indicators.append('diff')
         self.indicators.append('dea')
         self.indicators.append('macd')
 
-    # def transform(self, input_df) -> pd.DataFrame:
-    #     macd_df = input_df.groupby(level=0)['close'].apply(
-    #         lambda x: macd(x, slow=self.slow, fast=self.fast, n=self.n, return_type='df', normal=self.normal))
-    #     input_df = pd.concat([input_df, macd_df], axis=1, sort=False)
-    #     return input_df
+    def transform(self, input_df) -> pd.DataFrame:
+        macd_df = input_df.groupby(level=0)['close'].apply(
+            lambda x: macd(x, slow=self.slow, fast=self.fast, n=self.n, return_type='df', normal=self.normal,
+                           count_live_dead=self.count_live_dead))
+        input_df = pd.concat([input_df, macd_df], axis=1, sort=False)
+        return input_df
 
     def transform_one(self, entity_id, df: pd.DataFrame) -> pd.DataFrame:
         print(f'transform_one {entity_id} {df}')
-        return macd(df['close'], slow=self.slow, fast=self.fast, n=self.n, return_type='df', normal=self.normal)
+        return macd(df['close'], slow=self.slow, fast=self.fast, n=self.n, return_type='df', normal=self.normal,
+                    count_live_dead=self.count_live_dead)
 
 
 class QuantileScorer(Scorer):
@@ -303,5 +284,5 @@ class QuantileScorer(Scorer):
 
 
 # the __all__ is generated
-__all__ = ['ma', 'ema', 'macd', 'point_in_range', 'intersect_ranges', 'intersect', 'RankScorer', 'consecutive_count',
+__all__ = ['ma', 'ema', 'macd', 'point_in_range', 'intersect_ranges', 'intersect', 'RankScorer',
            'MaTransformer', 'IntersectTransformer', 'MaAndVolumeTransformer', 'MacdTransformer', 'QuantileScorer']

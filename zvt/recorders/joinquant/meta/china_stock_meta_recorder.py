@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import pandas as pd
-
 from jqdatapy.api import get_all_securities, run_query
+
 from zvt.api.quote import china_stock_code_to_id, portfolio_relate_stock
 from zvt.contract.api import df_to_db, get_entity_exchange, get_entity_code
 from zvt.contract.recorder import Recorder, TimeSeriesDataRecorder
@@ -75,16 +75,17 @@ class JqChinaStockEtfPortfolioRecorder(TimeSeriesDataRecorder):
 
     data_schema = EtfStock
 
-    def __init__(self, entity_type='etf', exchanges=['sh', 'sz'], entity_ids=None, codes=None, batch_size=10,
+    def __init__(self, entity_type='etf', exchanges=['sh', 'sz'], entity_ids=None, codes=None, day_data=True, batch_size=10,
                  force_update=False, sleeping_time=5, default_size=2000, real_time=False, fix_duplicate_way='add',
                  start_timestamp=None, end_timestamp=None, close_hour=0, close_minute=0) -> None:
-        super().__init__(entity_type, exchanges, entity_ids, codes, batch_size, force_update, sleeping_time,
+        super().__init__(entity_type, exchanges, entity_ids, codes, day_data, batch_size, force_update, sleeping_time,
                          default_size, real_time, fix_duplicate_way, start_timestamp, end_timestamp, close_hour,
                          close_minute)
 
     def record(self, entity, start, end, size, timestamps):
         df = run_query(table='finance.FUND_PORTFOLIO_STOCK',
-                       conditions=f'pub_date#>=#{to_time_str(start)}&code#=#{entity.code}')
+                       conditions=f'pub_date#>=#{to_time_str(start)}&code#=#{entity.code}',
+                       parse_dates=None)
         if pd_is_not_null(df):
             #          id    code period_start  period_end    pub_date  report_type_id report_type  rank  symbol  name      shares    market_cap  proportion
             # 0   8640569  159919   2018-07-01  2018-09-30  2018-10-26          403003        第三季度     1  601318  中国平安  19869239.0  1.361043e+09        7.09
@@ -111,8 +112,8 @@ class JqChinaStockEtfPortfolioRecorder(TimeSeriesDataRecorder):
         return None
 
 
-__all__ = ['JqChinaStockRecorder', 'JqChinaEtfRecorder', 'JqChinaStockEtfPortfolioRecorder']
-
 if __name__ == '__main__':
     # JqChinaEtfRecorder().run()
     JqChinaStockEtfPortfolioRecorder(codes=['510050']).run()
+# the __all__ is generated
+__all__ = ['BaseJqChinaMetaRecorder', 'JqChinaStockRecorder', 'JqChinaEtfRecorder', 'JqChinaStockEtfPortfolioRecorder']

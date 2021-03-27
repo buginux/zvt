@@ -7,9 +7,18 @@ from zvt.contract import IntervalLevel
 from zvt.contract.api import get_data, get_db_session
 from zvt.contract.normal_data import NormalData
 from zvt.contract.reader import DataReader
-from zvt.domain import AccountStats, Order, trader_info
-from zvt.drawer.drawer import Drawer
+from zvt.domain import AccountStats, Order, trader_info, TraderInfo, Position
+from zvt.contract.drawer import Drawer
 
+
+def clear_trader(trader_name, session=None):
+    if not session:
+        session = get_db_session('zvt', data_schema=TraderInfo)
+    session.query(TraderInfo).filter(TraderInfo.trader_name == trader_name).delete()
+    session.query(AccountStats).filter(AccountStats.trader_name == trader_name).delete()
+    session.query(Position).filter(Position.trader_name == trader_name).delete()
+    session.query(Order).filter(Order.trader_name == trader_name).delete()
+    session.commit()
 
 def get_trader_info(trader_name=None, return_type='df', start_timestamp=None, end_timestamp=None,
                     filters=None, session=None, order=None, limit=None) -> List[trader_info.TraderInfo]:
@@ -94,4 +103,4 @@ if __name__ == '__main__':
                                          category_field='trader_name'))
     drawer.draw_line()
 # the __all__ is generated
-__all__ = ['AccountStatsReader', 'OrderReader']
+__all__ = ['get_trader_info', 'get_order_securities', 'AccountStatsReader', 'OrderReader']

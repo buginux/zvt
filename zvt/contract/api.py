@@ -2,7 +2,7 @@
 import logging
 import os
 import platform
-from typing import List, Union
+from typing import List, Union, Type
 
 import pandas as pd
 from sqlalchemy import create_engine
@@ -14,6 +14,7 @@ from sqlalchemy.orm import sessionmaker, Session
 
 from zvt import zvt_env
 from zvt.contract import IntervalLevel, EntityMixin
+from zvt.contract import Mixin
 from zvt.contract import zvt_context
 from zvt.utils.pd_utils import pd_is_not_null, index_df
 from zvt.utils.time_utils import to_pd_timestamp
@@ -247,6 +248,19 @@ def common_filter(query: Query,
     return query
 
 
+def del_data(data_schema: Type[Mixin], filters: List = None, provider=None):
+    if not provider:
+        provider = data_schema.providers[0]
+
+    session = get_db_session(provider=provider, data_schema=data_schema)
+    query = session.query(data_schema)
+    if filters:
+        for f in filters:
+            query = query.filter(f)
+    query.delete()
+    session.commit()
+
+
 def get_data(data_schema,
              ids: List[str] = None,
              entity_ids: List[str] = None,
@@ -407,7 +421,7 @@ def df_to_db(df: pd.DataFrame,
     :return:
     """
     if not pd_is_not_null(df):
-        return
+        return 0
 
     if drop_duplicates and df.duplicated(subset='id').any():
         logger.warning(f'remove duplicated:{df[df.duplicated()]}')
@@ -420,7 +434,7 @@ def df_to_db(df: pd.DataFrame,
 
     if not cols:
         print('wrong cols')
-        return
+        return 0
 
     df = df[list(cols)]
 
@@ -435,6 +449,8 @@ def df_to_db(df: pd.DataFrame,
             step_size = step_size + 1
     else:
         step_size = 1
+
+    saved = 0
 
     for step in range(step_size):
         df_current = df.iloc[sub_size * step:sub_size * (step + 1)]
@@ -455,7 +471,11 @@ def df_to_db(df: pd.DataFrame,
             if pd_is_not_null(current):
                 df_current = df_current[~df_current['id'].isin(current['id'])]
 
-        df_current.to_sql(data_schema.__tablename__, db_engine, index=False, if_exists='append')
+        if pd_is_not_null(df_current):
+            saved = saved + len(df_current)
+            df_current.to_sql(data_schema.__tablename__, db_engine, index=False, if_exists='append')
+
+    return saved
 
 
 def get_entities(
@@ -499,9 +519,10 @@ def get_entities(
                     filters=filters, session=session, order=order, limit=limit, index=index)
 
 
-def get_entity_ids(entity_type='stock', entity_schema: EntityMixin = None, exchanges=None, codes=None, provider=None):
+def get_entity_ids(entity_type='stock', entity_schema: EntityMixin = None, exchanges=None, codes=None, provider=None,
+                   filters=None):
     df = get_entities(entity_type=entity_type, entity_schema=entity_schema, exchanges=exchanges, codes=codes,
-                      provider=provider)
+                      provider=provider, filters=filters)
     if pd_is_not_null(df):
         return df['entity_id'].to_list()
     return None

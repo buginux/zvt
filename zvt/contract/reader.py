@@ -8,7 +8,7 @@ import pandas as pd
 
 from zvt.contract import IntervalLevel, Mixin, EntityMixin
 from zvt.contract.api import get_entities
-from zvt.drawer.drawer import Drawable
+from zvt.contract.drawer import Drawable
 from zvt.utils.pd_utils import pd_is_not_null
 from zvt.utils.time_utils import to_pd_timestamp, now_pd_timestamp
 
@@ -61,7 +61,7 @@ class DataReader(Drawable):
                  filters: List = None,
                  order: object = None,
                  limit: int = None,
-                 level: IntervalLevel = IntervalLevel.LEVEL_1DAY,
+                 level: IntervalLevel = None,
                  category_field: str = 'entity_id',
                  time_field: str = 'timestamp',
                  computing_window: int = None) -> None:
@@ -160,6 +160,13 @@ class DataReader(Drawable):
     def load_data(self):
         self.logger.info('load_data start')
         start_time = time.time()
+        params = dict(entity_ids=self.entity_ids, provider=self.provider,
+                      columns=self.columns, start_timestamp=self.start_timestamp,
+                      end_timestamp=self.end_timestamp, filters=self.filters,
+                      order=self.order, limit=self.limit, level=self.level,
+                      index=[self.category_field, self.time_field],
+                      time_field=self.time_field)
+        self.logger.info(f'query_data params:{params}')
 
         self.data_df = self.data_schema.query_data(entity_ids=self.entity_ids, provider=self.provider,
                                                    columns=self.columns, start_timestamp=self.start_timestamp,
@@ -249,7 +256,7 @@ class DataReader(Drawable):
 
         if dfs:
             self.data_df = pd.concat(dfs, sort=False)
-            self.data_df.sort_index(level=[0, 1])
+            self.data_df.sort_index(level=[0, 1], inplace=True)
 
             if changed:
                 for listener in self.data_listeners:
@@ -270,7 +277,7 @@ class DataReader(Drawable):
     def empty(self):
         return not pd_is_not_null(self.data_df)
 
-    def get_main_df(self) -> Optional[pd.DataFrame]:
+    def drawer_main_df(self) -> Optional[pd.DataFrame]:
         return self.data_df
 
 

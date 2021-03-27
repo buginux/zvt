@@ -977,7 +977,7 @@ class IncomeStatementSeasonal(IncomeStatementCommon, FinanceBase):
     __tablename__ = 'income_statement_seasonal'
 
 
-register_schema(providers=['eastmoney'], db_name='finance', schema_base=FinanceBase)
+register_schema(providers=['eastmoney'], db_name='finance', schema_base=FinanceBase, entity_type='stock')
 
 # the __all__ is generated
 __all__ = ['FinanceFactor', 'BalanceSheet', 'IncomeStatement', 'IncomeStatementSeasonal',

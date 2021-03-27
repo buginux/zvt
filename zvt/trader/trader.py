@@ -1,17 +1,15 @@
 # -*- coding: utf-8 -*-
-import json
 import logging
 import time
-from typing import List, Union, Type
+from typing import List, Union, Type, Tuple
 
 import pandas as pd
 
 from zvt.api.trader_info_api import AccountStatsReader
-from zvt.contract import IntervalLevel, EntityMixin
-from zvt.contract.api import get_db_session
+from zvt.contract import IntervalLevel, EntityMixin, AdjustType
+from zvt.contract.drawer import Drawer
 from zvt.contract.normal_data import NormalData
-from zvt.domain import Stock, TraderInfo, AccountStats, Position
-from zvt.drawer.drawer import Drawer
+from zvt.domain import Stock, AccountStats, Position
 from zvt.factors.target_selector import TargetSelector
 from zvt.trader import TradingSignal, TradingSignalType, TradingListener
 from zvt.trader.account import SimAccountService
@@ -33,8 +31,13 @@ class Trader(object):
                  real_time: bool = False,
                  kdata_use_begin_time: bool = False,
                  draw_result: bool = True,
-                 rich_mode: bool = True) -> None:
+                 rich_mode: bool = False,
+                 adjust_type: AdjustType = None,
+                 profit_threshold=(3, -0.3),
+                 keep_history=False) -> None:
         assert self.entity_schema is not None
+        assert start_timestamp is not None
+        assert end_timestamp is not None
 
         self.logger = logging.getLogger(__name__)
 
@@ -43,26 +46,15 @@ class Trader(object):
         else:
             self.trader_name = type(self).__name__.lower()
 
-        self.trading_signal_listeners: List[TradingListener] = []
-
-        #  Usually for selecting the targets in whole market with factors
-        self.selectors: List[TargetSelector] = []
-
         self.entity_ids = entity_ids
-
         self.exchanges = exchanges
         self.codes = codes
-
         self.provider = provider
         # make sure the min level selector correspond to the provider and level
         self.level = IntervalLevel(level)
         self.real_time = real_time
-
-        if start_timestamp and end_timestamp:
-            self.start_timestamp = to_pd_timestamp(start_timestamp)
-            self.end_timestamp = to_pd_timestamp(end_timestamp)
-        else:
-            assert False
+        self.start_timestamp = to_pd_timestamp(start_timestamp)
+        self.end_timestamp = to_pd_timestamp(end_timestamp)
 
         self.trading_dates = self.entity_schema.get_trading_dates(start_date=self.start_timestamp,
                                                                   end_date=self.end_timestamp)
@@ -76,17 +68,32 @@ class Trader(object):
         self.draw_result = draw_result
         self.rich_mode = rich_mode
 
+        if type(adjust_type) is str:
+            adjust_type = AdjustType(adjust_type)
+        self.adjust_type = adjust_type
+        self.profit_threshold = profit_threshold
+        self.keep_history = keep_history
+
+        self.level_map_long_targets = {}
+        self.level_map_short_targets = {}
+        self.trading_signals: List[TradingSignal] = []
+        self.trading_signal_listeners: List[TradingListener] = []
+        self.selectors: List[TargetSelector] = []
+
         self.account_service = SimAccountService(entity_schema=self.entity_schema,
                                                  trader_name=self.trader_name,
                                                  timestamp=self.start_timestamp,
                                                  provider=self.provider,
                                                  level=self.level,
-                                                 rich_mode=rich_mode)
+                                                 rich_mode=self.rich_mode,
+                                                 adjust_type=self.adjust_type,
+                                                 keep_history=self.keep_history)
 
         self.register_trading_signal_listener(self.account_service)
 
-        self.init_selectors(entity_ids=entity_ids, entity_schema=self.entity_schema, exchanges=self.exchanges,
-                            codes=self.codes, start_timestamp=self.start_timestamp, end_timestamp=self.end_timestamp)
+        self.init_selectors(entity_ids=self.entity_ids, entity_schema=self.entity_schema, exchanges=self.exchanges,
+                            codes=self.codes, start_timestamp=self.start_timestamp, end_timestamp=self.end_timestamp,
+                            adjust_type=self.adjust_type)
 
         if self.selectors:
             self.trading_level_asc = list(set([IntervalLevel(selector.level) for selector in self.selectors]))
@@ -100,75 +107,40 @@ class Trader(object):
             self.trading_level_desc = list(self.trading_level_asc)
             self.trading_level_desc.reverse()
 
-        self.session = get_db_session('zvt', data_schema=TraderInfo)
-
-        self.level_map_long_targets = {}
-        self.level_map_short_targets = {}
-        self.trading_signals: List[TradingSignal] = []
+            # run selectors for history data at first
+            for selector in self.selectors:
+                selector.run()
 
         self.on_start()
 
     def on_start(self):
-        # run all the selectors
-        for selector in self.selectors:
-            # run for the history data at first
-            selector.run()
+        self.logger.info(f'trader:{self.trader_name} on_start')
 
-        if self.entity_ids:
-            entity_ids = json.dumps(self.entity_ids)
-        else:
-            entity_ids = None
-
-        if self.exchanges:
-            exchanges = json.dumps(self.exchanges)
-        else:
-            exchanges = None
-
-        if self.codes:
-            codes = json.dumps(self.codes)
-        else:
-            codes = None
-
-        sim_account = TraderInfo(id=self.trader_name,
-                                 entity_id=f'trader_zvt_{self.trader_name}',
-                                 timestamp=self.start_timestamp,
-                                 trader_name=self.trader_name,
-                                 entity_ids=entity_ids,
-                                 exchanges=exchanges,
-                                 codes=codes,
-                                 start_timestamp=self.start_timestamp,
-                                 end_timestamp=self.end_timestamp,
-                                 provider=self.provider,
-                                 level=self.level.value,
-                                 real_time=self.real_time,
-                                 kdata_use_begin_time=self.kdata_use_begin_time)
-        self.session.add(sim_account)
-        self.session.commit()
-
-    def init_selectors(self, entity_ids, entity_schema, exchanges, codes, start_timestamp, end_timestamp):
+    def init_selectors(self, entity_ids, entity_schema, exchanges, codes, start_timestamp, end_timestamp,
+                       adjust_type=None):
         """
-        overwrite it to init selectors if you want to use selector/factor computing model or just write strategy in on_time
+        overwrite it to init selectors if you want to use selector/factor computing model
+        :param adjust_type:
 
         """
         pass
 
-    def register_trading_signal_listener(self, listener):
-        if listener not in self.trading_signal_listeners:
-            self.trading_signal_listeners.append(listener)
+    def update_targets_by_level(self, level: IntervalLevel, long_targets: List[str],
+                                short_targets: List[str], ) -> None:
+        """
+        the trading signals is generated in min level,before that,we should cache targets of all levels
 
-    def deregister_trading_signal_listener(self, listener):
-        if listener in self.trading_signal_listeners:
-            self.trading_signal_listeners.remove(listener)
-
-    def set_long_targets_by_level(self, level: IntervalLevel, targets: List[str]) -> None:
+        :param level:
+        :param long_targets:
+        :param short_targets:
+        """
         self.logger.debug(
-            f'level:{level},old long targets:{self.level_map_long_targets.get(level)},new long targets:{targets}')
-        self.level_map_long_targets[level] = targets
+            f'level:{level},old long targets:{self.level_map_long_targets.get(level)},new long targets:{long_targets}')
+        self.level_map_long_targets[level] = long_targets
 
-    def set_short_targets_by_level(self, level: IntervalLevel, targets: List[str]) -> None:
         self.logger.debug(
-            f'level:{level},old short targets:{self.level_map_short_targets.get(level)},new short targets:{targets}')
-        self.level_map_short_targets[level] = targets
+            f'level:{level},old short targets:{self.level_map_short_targets.get(level)},new short targets:{short_targets}')
+        self.level_map_short_targets[level] = short_targets
 
     def get_long_targets_by_level(self, level: IntervalLevel) -> List[str]:
         return self.level_map_long_targets.get(level)
@@ -176,46 +148,45 @@ class Trader(object):
     def get_short_targets_by_level(self, level: IntervalLevel) -> List[str]:
         return self.level_map_short_targets.get(level)
 
-    def select_long_targets_from_levels(self, timestamp):
+    def on_targets_selected_from_levels(self, timestamp) -> Tuple[List[str], List[str]]:
         """
-        overwrite it to select long targets from multiple levels,the default implementation is selecting the targets in all level
+        this method's called in every min level cycle to select targets in all levels generated by the previous cycle
+        the default implementation is selecting the targets in all levels
+        overwrite it for your custom logic
 
-        :param timestamp:
-
+        :param timestamp: current event time
+        :return: long targets, short targets
         """
 
         long_selected = None
 
+        short_selected = None
+
         for level in self.trading_level_desc:
             long_targets = self.level_map_long_targets.get(level)
+            # long must in all
             if long_targets:
                 long_targets = set(long_targets)
-                if not long_selected:
+                if long_selected is None:
                     long_selected = long_targets
                 else:
                     long_selected = long_selected & long_targets
-        return long_selected
+            else:
+                long_selected = set()
 
-    def select_short_targets_from_levels(self, timestamp):
-        """
-        overwrite it to select short targets from multiple levels,the default implementation is selecting the targets in all level
-
-        :param timestamp:
-
-        """
-        short_selected = None
-        for level in self.trading_level_desc:
             short_targets = self.level_map_short_targets.get(level)
+            # short any
             if short_targets:
                 short_targets = set(short_targets)
-                if not short_selected:
+                if short_selected is None:
                     short_selected = short_targets
                 else:
-                    short_selected = short_selected & short_targets
-        return short_selected
+                    short_selected = short_selected | short_targets
+
+        return long_selected, short_selected
 
     def get_current_account(self) -> AccountStats:
-        return self.account_service.account
+        return self.account_service.get_current_account()
 
     def get_current_positions(self) -> List[Position]:
         return self.get_current_account().positions
@@ -225,13 +196,37 @@ class Trader(object):
 
         position_pct = 1.0
         if not positions:
+            # 没有仓位，买2成
             position_pct = 0.2
         elif len(positions) <= 10:
+            # 小于10个持仓，买5成
             position_pct = 0.5
+
+        # 买完
         return position_pct
 
     def short_position_control(self):
+        # 卖完
         return 1.0
+
+    def on_profit_control(self):
+        if self.profit_threshold and self.get_current_positions():
+            positive = self.profit_threshold[0]
+            negative = self.profit_threshold[1]
+            close_long_entity_ids = []
+            for position in self.get_current_positions():
+                if position.available_long > 1:
+                    # 止盈
+                    if position.profit_rate >= positive:
+                        close_long_entity_ids.append(position.entity_id)
+                        self.logger.info(f'close profit {position.profit_rate} for {position.entity_id}')
+                    # 止损
+                    if position.profit_rate <= negative:
+                        close_long_entity_ids.append(position.entity_id)
+                        self.logger.info(f'cut lost {position.profit_rate} for {position.entity_id}')
+
+            return close_long_entity_ids, None
+        return None, None
 
     def buy(self, due_timestamp, happen_timestamp, entity_ids, ignore_in_position=True):
         if ignore_in_position:
@@ -296,20 +291,35 @@ class Trader(object):
                                                  category_field='trader_name'))
             drawer.draw_line(show=True)
 
-    def filter_selector_long_targets(self, timestamp, selector: TargetSelector, long_targets: List[str]) -> List[str]:
-        if len(long_targets) > 10:
-            return long_targets[0:10]
-        return long_targets
+    def on_targets_filtered(self, timestamp, level, selector: TargetSelector, long_targets: List[str],
+                            short_targets: List[str]) -> Tuple[List[str], List[str]]:
+        """
+        overwrite it to filter the targets from selector
 
-    def filter_selector_short_targets(self, timestamp, selector: TargetSelector, short_targets: List[str]) -> List[str]:
-        if len(short_targets) > 10:
-            return short_targets[0:10]
-        return short_targets
+        :param timestamp: the event time
+        :param level: the level
+        :param selector: the selector
+        :param long_targets: the long targets from the selector
+        :param short_targets: the short targets from the selector
+        :return: filtered long targets, filtered short targets
+        """
+        self.logger.info(f'on_targets_filtered {level} long:{long_targets}')
+
+        if len(long_targets) > 10:
+            long_targets = long_targets[0:10]
+        self.logger.info(f'on_targets_filtered {level} filtered long:{long_targets}')
+
+        return long_targets, short_targets
 
     def in_trading_date(self, timestamp):
         return to_time_str(timestamp) in self.trading_dates
 
-    def on_time(self, timestamp):
+    def on_time(self, timestamp: pd.Timestamp):
+        """
+        called in every min level cycle
+
+        :param timestamp: event time
+        """
         self.logger.debug(f'current timestamp:{timestamp}')
 
     def on_trading_signals(self, trading_signals: List[TradingSignal]):
@@ -387,32 +397,40 @@ class Trader(object):
 
             self.on_time(timestamp=timestamp)
 
+            # 一般来说selector(factors)计算 多标的 历史数据比较快，多级别的计算也比较方便，常用于全市场标的粗过滤
+            # 更细节的控制可以在on_targets_filtered里进一步处理
+            # 也可以在on_time里面设计一些自己的逻辑配合过滤
             if self.selectors:
+                # 多级别的遍历算法要点:
+                # 1)计算各级别的 标的，通过 on_targets_filtered 过滤，缓存在level_map_long_targets，level_map_short_targets
+                # 2)在最小的level通过 on_targets_selected_from_levels 根据多级别的缓存标的，生成最终的选中标的
+                # 这里需要注意的是，小级别拿到上一个周期的大级别的标的，这是合理的
                 for level in self.trading_level_asc:
                     # in every cycle, all level selector do its job in its time
                     if self.entity_schema.is_finished_kdata_timestamp(timestamp=timestamp, level=level):
                         all_long_targets = []
                         all_short_targets = []
+
+                        # 从该level的selector中过滤targets
                         for selector in self.selectors:
                             if selector.level == level:
                                 long_targets = selector.get_open_long_targets(timestamp=timestamp)
-                                long_targets = self.filter_selector_long_targets(timestamp=timestamp, selector=selector,
-                                                                                 long_targets=long_targets)
-
                                 short_targets = selector.get_open_short_targets(timestamp=timestamp)
-                                short_targets = self.filter_selector_short_targets(timestamp=timestamp,
-                                                                                   selector=selector,
-                                                                                   short_targets=short_targets)
+
+                                if long_targets or short_targets:
+                                    long_targets, short_targets = self.on_targets_filtered(timestamp=timestamp,
+                                                                                           level=level,
+                                                                                           selector=selector,
+                                                                                           long_targets=long_targets,
+                                                                                           short_targets=short_targets)
 
                                 if long_targets:
                                     all_long_targets += long_targets
                                 if short_targets:
                                     all_short_targets += short_targets
 
-                        if all_long_targets:
-                            self.set_long_targets_by_level(level, all_long_targets)
-                        if all_short_targets:
-                            self.set_short_targets_by_level(level, all_short_targets)
+                        # 将各级别的targets缓存在level_map_long_targets，level_map_short_targets
+                        self.update_targets_by_level(level, all_long_targets, all_short_targets)
 
                         # the time always move on by min level step and we could check all targets of levels
                         # 1)the targets is generated for next interval
@@ -420,16 +438,25 @@ class Trader(object):
                         # if the time is before the timestamp(due_timestamp) when trading signal received
                         # 3)the suggest price the the close price for generating the signal(happen_timestamp)
                         due_timestamp = timestamp + pd.Timedelta(seconds=self.level.to_second())
+
+                        # 在最小level生成最终的 交易信号
                         if level == self.level:
-                            long_selected = self.select_long_targets_from_levels(timestamp)
-                            short_selected = self.select_short_targets_from_levels(timestamp)
+                            long_selected, short_selected = self.on_targets_selected_from_levels(timestamp)
+
+                            # 处理 止赢 止损
+                            passive_short, _ = self.on_profit_control()
+                            if passive_short:
+                                if not short_selected:
+                                    short_selected = passive_short
+                                else:
+                                    short_selected = list(set(short_selected) | set(passive_short))
 
                             self.logger.debug('timestamp:{},long_selected:{}'.format(due_timestamp, long_selected))
-
                             self.logger.debug('timestamp:{},short_selected:{}'.format(due_timestamp, short_selected))
 
-                            self.trade_the_targets(due_timestamp=due_timestamp, happen_timestamp=timestamp,
-                                                   long_selected=long_selected, short_selected=short_selected)
+                            if long_selected or short_selected:
+                                self.trade_the_targets(due_timestamp=due_timestamp, happen_timestamp=timestamp,
+                                                       long_selected=long_selected, short_selected=short_selected)
 
             if self.trading_signals:
                 self.on_trading_signals(self.trading_signals)
@@ -443,9 +470,27 @@ class Trader(object):
 
         self.on_finish(timestamp)
 
+    def register_trading_signal_listener(self, listener):
+        if listener not in self.trading_signal_listeners:
+            self.trading_signal_listeners.append(listener)
+
+    def deregister_trading_signal_listener(self, listener):
+        if listener in self.trading_signal_listeners:
+            self.trading_signal_listeners.remove(listener)
+
 
 class StockTrader(Trader):
     entity_schema = Stock
+
+    def __init__(self, entity_ids: List[str] = None, exchanges: List[str] = None, codes: List[str] = None,
+                 start_timestamp: Union[str, pd.Timestamp] = None, end_timestamp: Union[str, pd.Timestamp] = None,
+                 provider: str = None, level: Union[str, IntervalLevel] = IntervalLevel.LEVEL_1DAY,
+                 trader_name: str = None, real_time: bool = False, kdata_use_begin_time: bool = False,
+                 draw_result: bool = True, rich_mode: bool = False, adjust_type: AdjustType = AdjustType.hfq,
+                 profit_threshold=(3, -0.3), keep_history=False) -> None:
+        super().__init__(entity_ids, exchanges, codes, start_timestamp, end_timestamp, provider, level, trader_name,
+                         real_time, kdata_use_begin_time, draw_result, rich_mode, adjust_type, profit_threshold,
+                         keep_history)
 
 
 # the __all__ is generated

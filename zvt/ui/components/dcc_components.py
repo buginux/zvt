@@ -4,9 +4,9 @@ import dash_core_components as dcc
 
 from zvt.api.quote import decode_entity_id, get_kdata_schema
 from zvt.api.trader_info_api import OrderReader, AccountStatsReader
+from zvt.contract.drawer import Drawer
 from zvt.contract.reader import DataReader
 from zvt.contract.zvt_context import entity_schema_map
-from zvt.drawer.drawer import Drawer
 from zvt.utils.pd_utils import pd_is_not_null
 
 
@@ -27,10 +27,11 @@ def order_type_flag(order_type):
 def get_trading_signals_figure(order_reader: OrderReader,
                                entity_id: str,
                                start_timestamp=None,
-                               end_timestamp=None):
+                               end_timestamp=None,
+                               adjust_type=None):
     entity_type, _, _ = decode_entity_id(entity_id)
 
-    data_schema = get_kdata_schema(entity_type=entity_type, level=order_reader.level)
+    data_schema = get_kdata_schema(entity_type=entity_type, level=order_reader.level, adjust_type=adjust_type)
     if not start_timestamp:
         start_timestamp = order_reader.start_timestamp
     if not end_timestamp:
@@ -52,7 +53,7 @@ def get_trading_signals_figure(order_reader: OrderReader,
     print(df.tail())
 
     drawer = Drawer(main_df=kdata_reader.data_df, annotation_df=df)
-    return drawer.draw_kline(show=False)
+    return drawer.draw_kline(show=False, height=800)
 
 
 def get_account_stats_figure(account_stats_reader: AccountStatsReader):

@@ -5,9 +5,9 @@ import math
 from typing import List
 
 from zvt.api import get_kdata
-from zvt.api.trader_info_api import get_trader_info
 from zvt.api.quote import decode_entity_id, get_kdata_schema
-from zvt.contract import IntervalLevel, EntityMixin
+from zvt.api.trader_info_api import get_trader_info, clear_trader
+from zvt.contract import IntervalLevel, EntityMixin, AdjustType
 from zvt.contract.api import get_db_session
 from zvt.domain.trader_info import AccountStats, Position, Order, TraderInfo
 from zvt.trader import TradingSignalType, TradingListener, TradingSignal
@@ -51,6 +51,9 @@ class AccountService(TradingListener):
 
         :param entity_id:
         """
+        pass
+
+    def get_current_account(self):
         pass
 
     def order(self, entity_id, current_price, current_timestamp, order_amount=0, order_pct=1.0, order_price=0,
@@ -105,37 +108,73 @@ class SimAccountService(AccountService):
                  buy_cost=0.001,
                  sell_cost=0.001,
                  slippage=0.001,
-                 rich_mode=True):
+                 rich_mode=True,
+                 adjust_type: AdjustType = None,
+                 keep_history=False,
+                 real_time=False,
+                 kdata_use_begin_time=False):
         self.entity_schema = entity_schema
         self.base_capital = base_capital
         self.buy_cost = buy_cost
         self.sell_cost = sell_cost
         self.slippage = slippage
         self.rich_mode = rich_mode
+        self.adjust_type = adjust_type
         self.trader_name = trader_name
 
         self.session = get_db_session('zvt', data_schema=TraderInfo)
         self.provider = provider
         self.level = level
         self.start_timestamp = timestamp
+        self.keep_history = keep_history
+        self.real_time = real_time
+        self.kdata_use_begin_time = kdata_use_begin_time
 
-        self.account: AccountStats = self.init_account()
+        self.account = None
+        self.account = self.init_account()
+
+        account_info = f'init_account,holding size:{len(self.account.positions)} profit:{self.account.profit} input_money:{self.account.input_money} ' \
+                       f'cash:{self.account.cash} value:{self.account.value} all_value:{self.account.all_value}'
+        self.logger.info(account_info)
 
     def input_money(self, money=1000000):
         self.account.input_money += money
         self.account.cash += money
 
-    def init_account(self) -> AccountStats:
+    def clear_account(self):
         trader_info = get_trader_info(session=self.session, trader_name=self.trader_name, return_type='domain',
                                       limit=1)
 
         if trader_info:
             self.logger.warning("trader:{} has run before,old result would be deleted".format(self.trader_name))
-            self.session.query(TraderInfo).filter(TraderInfo.trader_name == self.trader_name).delete()
-            self.session.query(AccountStats).filter(AccountStats.trader_name == self.trader_name).delete()
-            self.session.query(Position).filter(Position.trader_name == self.trader_name).delete()
-            self.session.query(Order).filter(Order.trader_name == self.trader_name).delete()
-            self.session.commit()
+            clear_trader(session=self.session, trader_name=self.trader_name)
+
+    def init_account(self) -> AccountStats:
+        # 清除历史数据
+        if not self.keep_history:
+            self.clear_account()
+
+        # 读取之前保存的账户
+        if self.keep_history:
+            self.account = self.load_account()
+            if self.account:
+                return self.account
+
+        # init trader info
+        entity_type = self.entity_schema.__name__.lower()
+        sim_account = TraderInfo(id=self.trader_name,
+                                 entity_id=f'trader_zvt_{self.trader_name}',
+                                 timestamp=self.start_timestamp,
+                                 trader_name=self.trader_name,
+                                 entity_type=entity_type,
+                                 start_timestamp=self.start_timestamp,
+                                 provider=self.provider,
+                                 level=self.level.value,
+                                 real_time=self.real_time,
+                                 kdata_use_begin_time=self.kdata_use_begin_time,
+                                 kdata_adjust_type=self.adjust_type.value)
+        self.session.add(sim_account)
+        self.session.commit()
 
         return AccountStats(entity_id=f'trader_zvt_{self.trader_name}',
                             timestamp=self.start_timestamp,
@@ -144,8 +183,7 @@ class SimAccountService(AccountService):
                             input_money=self.base_capital,
                             all_value=self.base_capital,
                             value=0,
-                            closing=False
-                            )
+                            closing=False)
 
     def load_account(self) -> AccountStats:
         records = AccountStats.query_data(filters=[AccountStats.trader_name == self.trader_name],
@@ -164,7 +202,7 @@ class SimAccountService(AccountService):
         positions: List[Position] = []
         for position_domain in latest_record.positions:
             position_dict = position_schema.dump(position_domain)
-            self.logger.info('current position:{}'.format(position_dict))
+            self.logger.debug('current position:{}'.format(position_dict))
             del position_dict['id']
             del position_dict['account_stats']
             position = Position()
@@ -180,7 +218,6 @@ class SimAccountService(AccountService):
         if is_same_date(timestamp, self.start_timestamp):
             return
         self.account = self.load_account()
-        self.logger.info('on_trading_open:{},current_account:{}'.format(timestamp, self.account))
 
     def on_trading_error(self, timestamp, error):
         pass
@@ -205,7 +242,7 @@ class SimAccountService(AccountService):
             try:
                 kdata = get_kdata(provider=self.provider, entity_id=entity_id, level=trading_level,
                                   start_timestamp=happen_timestamp, end_timestamp=happen_timestamp,
-                                  limit=1)
+                                  limit=1, adjust_type=self.adjust_type)
             except Exception as e:
                 self.logger.error(e)
                 raise WrongKdataError("could not get kdata")
@@ -234,16 +271,22 @@ class SimAccountService(AccountService):
 
     def on_trading_close(self, timestamp):
         self.logger.info('on_trading_close:{}'.format(timestamp))
+        # remove the empty position
+        self.account.positions = [position for position in self.account.positions if
+                                  position.long_amount > 0 or position.short_amount > 0]
+
+        # clear the data which need recomputing
+        the_id = '{}_{}'.format(self.trader_name, to_time_str(timestamp, TIME_FORMAT_ISO8601))
 
         self.account.value = 0
         self.account.all_value = 0
         for position in self.account.positions:
             entity_type, _, _ = decode_entity_id(position.entity_id)
-            data_schema = get_kdata_schema(entity_type, level=IntervalLevel.LEVEL_1DAY)
+            data_schema = get_kdata_schema(entity_type, level=IntervalLevel.LEVEL_1DAY, adjust_type=self.adjust_type)
 
             kdata = get_kdata(provider=self.provider, level=IntervalLevel.LEVEL_1DAY, entity_id=position.entity_id,
                               order=data_schema.timestamp.desc(),
-                              end_timestamp=timestamp, limit=1)
+                              end_timestamp=timestamp, limit=1, adjust_type=self.adjust_type)
 
             closing_price = kdata['close'][0]
 
@@ -258,43 +301,34 @@ class SimAccountService(AccountService):
                     position.value = 2 * (position.short_amount * position.average_short_price)
                     position.value -= position.short_amount * closing_price
                     self.account.value += position.value
+
+                # refresh profit
+                position.profit = (closing_price - position.average_long_price) \
+                                  * position.long_amount
+                position.profit_rate = position.profit / (
+                        position.average_long_price * position.long_amount)
+
             else:
                 self.logger.warning(
-                    'could not refresh close value for position:{},timestamp:{}'.format(position['entity_id'],
+                    'could not refresh close value for position:{},timestamp:{}'.format(position.entity_id,
                                                                                         timestamp))
 
-        # remove the empty position
-        self.account.positions = [position for position in self.account.positions if
-                                  position.long_amount > 0 or position.short_amount > 0]
-
-        self.account.all_value = self.account.value + self.account.cash
-        self.account.closing = True
-        self.account.timestamp = to_pd_timestamp(timestamp)
-
-        self.logger.info('on_trading_close:{},latest_account:{}'.format(timestamp, self.account))
-        self.persist_account(timestamp)
-
-    def persist_account(self, timestamp):
-        """
-        save the account to db,we do this after closing time every day
-
-        :param timestamp:
-        :type timestamp:
-        """
-        the_id = '{}_{}'.format(self.trader_name, to_time_str(timestamp, TIME_FORMAT_ISO8601))
-
-        for position in self.account.positions:
             position.id = '{}_{}_{}'.format(self.trader_name, position.entity_id,
                                             to_time_str(timestamp, TIME_FORMAT_ISO8601))
             position.timestamp = to_pd_timestamp(timestamp)
             position.account_stats_id = the_id
 
         self.account.id = the_id
-
-        self.logger.info('persist_account:{}'.format(account_stats_schema.dump(self.account)))
+        self.account.all_value = self.account.value + self.account.cash
+        self.account.closing = True
+        self.account.timestamp = to_pd_timestamp(timestamp)
+        self.account.profit = (self.account.all_value - self.account.input_money) / self.account.input_money
 
         self.session.add(self.account)
         self.session.commit()
+        account_info = f'on_trading_close,holding size:{len(self.account.positions)} profit:{self.account.profit} input_money:{self.account.input_money} ' \
+                       f'cash:{self.account.cash} value:{self.account.value} all_value:{self.account.all_value}'
+        self.logger.info(account_info)
 
     def get_current_position(self, entity_id) -> Position:
         """
@@ -309,6 +343,9 @@ class SimAccountService(AccountService):
             if position.entity_id == entity_id:
                 return position
         return None
+
+    def get_current_account(self):
+        return self.account
 
     def update_position(self, current_position, order_amount, current_price, order_type, timestamp):
         """
@@ -336,6 +373,8 @@ class SimAccountService(AccountService):
 
             # 计算平均价
             long_amount = current_position.long_amount + order_amount
+            if long_amount == 0:
+                current_position.average_long_price = 0
             current_position.average_long_price = (current_position.average_long_price * current_position.long_amount
                                                    + current_price * order_amount) / long_amount
 
@@ -365,6 +404,7 @@ class SimAccountService(AccountService):
 
         elif order_type == ORDER_TYPE_CLOSE_LONG:
             self.account.cash += (order_amount * current_price * (1 - self.slippage - self.sell_cost))
+            # FIXME:如果没卖完，重新计算计算平均价
 
             current_position.available_long -= order_amount
             current_position.long_amount -= order_amount
@@ -462,11 +502,10 @@ class SimAccountService(AccountService):
                     # 买的数量
                     order_amount = order_money // cost
 
-                    if order_amount < 100:
-                        if self.rich_mode:
-                            self.input_money()
-                        else:
-                            raise NotEnoughMoneyError()
+                    if order_amount < 1:
+                        self.logger.error(
+                            f'invalid order_money:{order_money}, cost:{cost}, order_amount:{order_amount}')
+                        return
 
                     self.update_position(current_position, order_amount, current_price, order_type,
                                          current_timestamp)
@@ -485,11 +524,10 @@ class SimAccountService(AccountService):
 
                     order_amount = order_money // cost
 
-                    if order_amount < 100:
-                        if self.rich_mode:
-                            self.input_money()
-                        else:
-                            raise NotEnoughMoneyError()
+                    if order_amount < 1:
+                        self.logger.error(
+                            f'invalid order_money:{order_money}, cost:{cost}, order_amount:{order_amount}')
+                        return
                     self.update_position(current_position, order_amount, current_price, order_type,
                                          current_timestamp)
                 else:
@@ -536,9 +574,10 @@ class SimAccountService(AccountService):
                     # 买的数量
                     order_amount = want_pay // cost
 
-                    if order_amount < 100:
+                    if order_amount < 1:
                         if self.rich_mode:
                             self.input_money()
+                            order_amount = max((self.account.cash * order_pct) // cost, 1)
                         else:
                             raise NotEnoughMoneyError()
                     self.update_position(current_position, order_amount, current_price, order_type,
@@ -553,9 +592,10 @@ class SimAccountService(AccountService):
 
                     order_amount = want_pay // cost
 
-                    if order_amount < 100:
+                    if order_amount < 1:
                         if self.rich_mode:
                             self.input_money()
+                            order_amount = max((self.account.cash * order_pct) // cost, 1)
                         else:
                             raise NotEnoughMoneyError()
 
@@ -594,5 +634,7 @@ class SimAccountService(AccountService):
                                 f'{entity_id} available_long:{current_position.available_long} order_pct:{order_pct} order_amount:{order_amount}')
                     else:
                         raise Exception("not enough position")
+
+
 # the __all__ is generated
 __all__ = ['AccountDayStatsSchema', 'PositionSchema', 'AccountService', 'SimAccountService']
