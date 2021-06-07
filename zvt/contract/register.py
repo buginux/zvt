@@ -31,6 +31,7 @@ def register_entity(entity_type: str = None):
 
             if entity_type_ not in zvt_context.entity_types:
                 zvt_context.entity_types.append(entity_type_)
+                zvt_context.entity_schemas.append(cls)
             zvt_context.entity_schema_map[entity_type_] = cls
         return cls
 
@@ -74,7 +75,6 @@ def register_schema(providers: List[str],
     zvt_context.dbname_map_schemas[db_name] = schemas
 
     for provider in providers:
-        # track in in  _providers
         if provider not in zvt_context.providers:
             zvt_context.providers.append(provider)
 
