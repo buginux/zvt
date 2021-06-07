@@ -451,14 +451,12 @@ class BalanceSheet(FinanceBase, Mixin):
     # 负债和股东权益总计
 
 
-class IncomeStatement(FinanceBase, Mixin):
+class IncomeStatementCommon(Mixin):
 
     @classmethod
     def important_cols(cls):
         return ['operating_income', 'investment_income', 'total_operating_costs', 'total_profits', 'sales_costs',
                 'managing_costs', 'financing_costs']
-
-    __tablename__ = 'income_statement'
 
     provider = Column(String(length=32))
     code = Column(String(length=32))
@@ -614,12 +612,10 @@ class IncomeStatement(FinanceBase, Mixin):
     fi_income_from_fair_value_change_of_fi_salable = Column(Float)
 
 
-class CashFlowStatement(FinanceBase, Mixin):
+class CashFlowStatementCommon(Mixin):
     @classmethod
     def important_cols(cls):
         return ['net_op_cash_flows', 'net_investing_cash_flows', 'net_financing_cash_flows', 'cash']
-
-    __tablename__ = 'cash_flow_statement'
 
     provider = Column(String(length=32))
     code = Column(String(length=32))
@@ -961,7 +957,28 @@ class FinanceFactor(FinanceBase, Mixin):
     broker_self_operated_fixed_income_securities_net_capital_ratio = Column(Float)
 
 
+class CashFlowStatement(CashFlowStatementCommon, FinanceBase):
+    """现金流量表"""
+    __tablename__ = 'cash_flow_statement'
+
+
+class CashFlowStatementSeasonal(CashFlowStatementCommon, FinanceBase):
+    """单季度现金流量表"""
+    __tablename__ = 'cash_flow_statement_seasonal'
+
+
+class IncomeStatement(IncomeStatementCommon, FinanceBase):
+    """利润表"""
+    __tablename__ = 'income_statement'
+
+
+class IncomeStatementSeasonal(IncomeStatementCommon, FinanceBase):
+    """单季度利润表"""
+    __tablename__ = 'income_statement_seasonal'
+
+
 register_schema(providers=['eastmoney'], db_name='finance', schema_base=FinanceBase, entity_type='stock')
 
 # the __all__ is generated
-__all__ = ['BalanceSheet', 'IncomeStatement', 'CashFlowStatement', 'FinanceFactor']
+__all__ = ['FinanceFactor', 'BalanceSheet', 'IncomeStatement', 'IncomeStatementSeasonal',
+           'CashFlowStatement', 'CashFlowStatementSeasonal']

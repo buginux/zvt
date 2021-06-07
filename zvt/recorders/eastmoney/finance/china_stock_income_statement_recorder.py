@@ -2,7 +2,7 @@
 from zvt.utils.time_utils import to_pd_timestamp
 from zvt.utils.utils import add_func_to_value, first_item_to_float
 from zvt.api.quote import to_report_period_type
-from zvt.domain import IncomeStatement
+from zvt.domain import IncomeStatement, IncomeStatementSeasonal
 from zvt.recorders.eastmoney.finance.base_china_stock_finance_recorder import BaseChinaStockFinanceRecorder
 
 income_statement_map = {
@@ -171,7 +171,13 @@ class ChinaStockIncomeStatementRecorder(BaseChinaStockFinanceRecorder):
         return income_statement_map
 
 
-__all__ = ['ChinaStockIncomeStatementRecorder']
+class ChinaStockIncomeStatementSeasonalRecorder(ChinaStockIncomeStatementRecorder):
+    data_schema = IncomeStatementSeasonal
+
+    report_type = 2
+
+
+__all__ = ['ChinaStockIncomeStatementRecorder', 'ChinaStockIncomeStatementSeasonalRecorder']
 
 if __name__ == '__main__':
     # init_log('income_statement.log')

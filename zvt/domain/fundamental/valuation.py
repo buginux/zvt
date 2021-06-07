@@ -23,6 +23,8 @@ class StockValuation(ValuationBase, Mixin):
     circulating_market_cap = Column(Float)
     # 换手率
     turnover_ratio = Column(Float)
+    # 股息率
+    dividend_rate = Column(Float)
     # 静态pe
     pe = Column(Float)
     # 动态pe
@@ -61,8 +63,7 @@ class EtfValuation(ValuationBase, Mixin):
     # 加权
     pcf1 = Column(Float)
 
-
-register_schema(providers=['joinquant'], db_name='valuation', schema_base=ValuationBase, entity_type='stock')
+register_schema(providers=['joinquant', 'joudou'], db_name='valuation', schema_base=ValuationBase, entity_type='stock')
 
 # the __all__ is generated
 __all__ = ['StockValuation', 'EtfValuation']

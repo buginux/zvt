@@ -5,11 +5,56 @@ import demjson
 import pandas as pd
 import requests
 
+from tenacity import retry, stop_after_attempt, wait_fixed
+
 from zvt.contract.api import df_to_db
 from zvt.contract.recorder import Recorder, TimeSeriesDataRecorder
 from zvt.utils.time_utils import now_pd_timestamp
 from zvt.api.quote import china_stock_code_to_id
 from zvt.domain import BlockStock, BlockCategory, Block
+
+
+class SwChinaBlockRecorder(Recorder):
+    provider = 'sw'
+    data_schema = Block
+
+    url = 'http://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/Market_Center.getHQNodes'
+
+    def run(self):
+        resp = requests.get(self.url)
+        resp_json = demjson.decode(resp.text)
+
+        try:
+            sw_blocks = resp_json[1][0][1][2][1]
+
+            block_list = []
+            for block_entry in sw_blocks:
+                block_name = block_entry[0]
+                sub_blocks = block_entry[1]
+                for sub_block_entry in sub_blocks:
+                    name = f'{block_name}_{sub_block_entry[0]}'
+                    code = sub_block_entry[-1]
+                    entity_id = f'block_cn_{code}'
+
+                    block_list.append({
+                        'id': entity_id,
+                        'entity_id': entity_id,
+                        'entity_type': 'block',
+                        'exchange': 'cn',
+                        'code': code,
+                        'name': name,
+                        'category': BlockCategory.industry.value
+                    })
+
+            if len(block_list) > 0:
+                df = pd.DataFrame(block_list)
+                df_to_db(data_schema=self.data_schema, df=df, provider=self.provider,
+                         force_update=True)
+
+            self.logger.info(f"finish record sw blocks...")
+
+        except IndexError as error:
+            self.logger.error("error: ,resp.text: ", error, resp.text)
 
 
 class SinaChinaBlockRecorder(Recorder):
@@ -65,16 +110,16 @@ class SinaChinaBlockStockRecorder(TimeSeriesDataRecorder):
     # 用于抓取行业包含的股票
     category_stocks_url = 'http://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/Market_Center.getHQNodeData?page={}&num=5000&sort=symbol&asc=1&node={}&symbol=&_s_r_a=page'
 
-    def __init__(self, entity_type='block', exchanges=None, entity_ids=None, codes=None, batch_size=10,
+    def __init__(self, entity_type='block', exchanges=None, entity_ids=None, codes=None, day_data=False, batch_size=10,
                  force_update=True, sleeping_time=5, default_size=2000, real_time=False, fix_duplicate_way='add',
                  start_timestamp=None, end_timestamp=None, close_hour=0, close_minute=0) -> None:
-        super().__init__(entity_type, exchanges, entity_ids, codes, batch_size, force_update, sleeping_time,
+        super().__init__(entity_type, exchanges, entity_ids, codes, day_data, batch_size, force_update, sleeping_time,
                          default_size, real_time, fix_duplicate_way, start_timestamp, end_timestamp, close_hour,
                          close_minute)
 
     def record(self, entity, start, end, size, timestamps):
         for page in range(1, 5):
-            resp = requests.get(self.category_stocks_url.format(page, entity.code))
+            resp = self.retry_get_block_stocks(self.category_stocks_url.format(page, entity.code))
             try:
                 if resp.text == 'null' or resp.text is None:
                     break
@@ -108,8 +153,20 @@ class SinaChinaBlockStockRecorder(TimeSeriesDataRecorder):
                 self.logger.error("error:,resp.text:", e, resp.text)
             self.sleep()
 
+    @retry(stop=stop_after_attempt(60), wait=wait_fixed(10))
+    def retry_get_block_stocks(self, url):
+        return requests.get(url)
 
-__all__ = ['SinaChinaBlockRecorder', 'SinaChinaBlockStockRecorder']
+
+class SwChinaBlockStockRecorder(SinaChinaBlockStockRecorder):
+    entity_provider = 'sw'
+    entity_schema = Block
+
+    provider = 'sina'
+    data_schema = BlockStock
+
+
+__all__ = ['SwChinaBlockRecorder', 'SwChinaBlockStockRecorder', 'SinaChinaBlockRecorder', 'SinaChinaBlockStockRecorder']
 
 if __name__ == '__main__':
     # init_log('sina_china_stock_category.log')

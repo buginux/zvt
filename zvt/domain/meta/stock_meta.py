@@ -91,7 +91,7 @@ class StockDetail(StockMetaBase, EntityMixin):
     net_winning_rate = Column(Float)
 
 
-register_schema(providers=['joinquant', 'eastmoney', 'exchange', 'sina'], db_name='stock_meta',
+register_schema(providers=['joinquant', 'eastmoney', 'exchange', 'sina', 'sw'], db_name='stock_meta',
                 schema_base=StockMetaBase)
 
 # the __all__ is generated

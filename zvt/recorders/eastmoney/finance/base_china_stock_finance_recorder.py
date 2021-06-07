@@ -16,16 +16,17 @@ from zvt.utils.time_utils import to_time_str, to_pd_timestamp
 class BaseChinaStockFinanceRecorder(EastmoneyTimestampsDataRecorder):
     finance_report_type = None
     data_type = 1
+    report_type = 1
 
     timestamps_fetching_url = 'https://emh5.eastmoney.com/api/CaiWuFenXi/GetCompanyReportDateList'
     timestamp_list_path_fields = ['CompanyReportDateList']
     timestamp_path_fields = ['ReportDate']
 
-    def __init__(self, entity_type='stock', exchanges=['sh', 'sz'], entity_ids=None, codes=None, batch_size=10,
+    def __init__(self, entity_type='stock', exchanges=['sh', 'sz'], entity_ids=None, codes=None, day_data=False, batch_size=10,
                  force_update=False, sleeping_time=5, default_size=2000, real_time=False,
                  fix_duplicate_way='add', start_timestamp=None, end_timestamp=None, close_hour=0,
                  close_minute=0) -> None:
-        super().__init__(entity_type, exchanges, entity_ids, codes, batch_size, force_update, sleeping_time,
+        super().__init__(entity_type, exchanges, entity_ids, codes, day_data, batch_size, force_update, sleeping_time,
                          default_size, real_time, fix_duplicate_way, start_timestamp, end_timestamp, close_hour,
                          close_minute)
 
@@ -44,7 +45,7 @@ class BaseChinaStockFinanceRecorder(EastmoneyTimestampsDataRecorder):
         }
 
         if self.finance_report_type == 'LiRunBiaoList' or self.finance_report_type == 'XianJinLiuLiangBiaoList':
-            param['ReportType'] = 1
+            param['ReportType'] = self.report_type
 
         timestamp_json_list = call_eastmoney_api(url=self.timestamps_fetching_url,
                                                  path_fields=self.timestamp_list_path_fields,
@@ -78,7 +79,7 @@ class BaseChinaStockFinanceRecorder(EastmoneyTimestampsDataRecorder):
             }
 
         if self.finance_report_type == 'LiRunBiaoList' or self.finance_report_type == 'XianJinLiuLiangBiaoList':
-            param['reportType'] = 1
+            param['reportType'] = self.report_type
 
         return param
 
