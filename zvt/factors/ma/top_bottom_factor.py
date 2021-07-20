@@ -4,7 +4,7 @@ from typing import List, Union
 import pandas as pd
 
 from zvt.contract import AdjustType
-from zvt.contract import IntervalLevel, EntityMixin
+from zvt.contract import IntervalLevel, TradableEntity
 from zvt.contract.drawer import Drawer
 from zvt.contract.factor import Accumulator
 from zvt.contract.factor import Transformer
@@ -32,10 +32,9 @@ class TopBottomTransformer(Transformer):
 
 
 class TopBottomFactor(TechnicalFactor):
-    def __init__(self, entity_schema: EntityMixin = Stock, provider: str = None, entity_provider: str = None,
+    def __init__(self, entity_schema: TradableEntity = Stock, provider: str = None, entity_provider: str = None,
                  entity_ids: List[str] = None, exchanges: List[str] = None, codes: List[str] = None,
-                 the_timestamp: Union[str, pd.Timestamp] = None, start_timestamp: Union[str, pd.Timestamp] = None,
-                 end_timestamp: Union[str, pd.Timestamp] = None,
+                 start_timestamp: Union[str, pd.Timestamp] = None, end_timestamp: Union[str, pd.Timestamp] = None,
                  columns: List = ['id', 'entity_id', 'timestamp', 'level', 'open', 'close', 'high', 'low'],
                  filters: List = None, order: object = None, limit: int = None,
                  level: Union[str, IntervalLevel] = IntervalLevel.LEVEL_1DAY, category_field: str = 'entity_id',
@@ -48,10 +47,10 @@ class TopBottomFactor(TechnicalFactor):
 
         transformer = TopBottomTransformer(window=window)
 
-        super().__init__(entity_schema, provider, entity_provider, entity_ids, exchanges, codes, the_timestamp,
-                         start_timestamp, end_timestamp, columns, filters, order, limit, level, category_field,
-                         time_field, computing_window, keep_all_timestamp, fill_method, effective_number, transformer,
-                         accumulator, need_persist, dry_run, factor_name, clear_state, not_load_data, adjust_type)
+        super().__init__(entity_schema, provider, entity_provider, entity_ids, exchanges, codes, start_timestamp,
+                         end_timestamp, columns, filters, order, limit, level, category_field, time_field,
+                         computing_window, keep_all_timestamp, fill_method, effective_number, transformer, accumulator,
+                         need_persist, dry_run, factor_name, clear_state, not_load_data, adjust_type)
 
 
 if __name__ == '__main__':

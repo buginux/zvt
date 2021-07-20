@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 
 from sqlalchemy import Column, String, DateTime, BigInteger, Float
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 
-from zvt.contract import EntityMixin
+from zvt.contract import TradableEntity
 from zvt.contract.register import register_schema, register_entity
 from zvt.contract import Portfolio, PortfolioStock, PortfolioStockHistory
 from zvt.utils.time_utils import now_pd_timestamp
@@ -13,7 +13,7 @@ StockMetaBase = declarative_base()
 
 # 个股
 @register_entity(entity_type='stock')
-class Stock(StockMetaBase, EntityMixin):
+class Stock(StockMetaBase, TradableEntity):
     __tablename__ = 'stock'
 
 
@@ -47,7 +47,7 @@ class Etf(StockMetaBase, Portfolio):
 
     @classmethod
     def get_stocks(cls, code=None, codes=None, ids=None, timestamp=now_pd_timestamp(), provider=None):
-        from zvt.api.quote import get_etf_stocks
+        from zvt.api.portfolio import get_etf_stocks
         return get_etf_stocks(code=code, codes=codes, ids=ids, timestamp=timestamp, provider=provider)
 
 
@@ -65,7 +65,7 @@ class EtfStock(StockMetaBase, PortfolioStockHistory):
 
 # 个股详情
 @register_entity(entity_type='stock_detail')
-class StockDetail(StockMetaBase, EntityMixin):
+class StockDetail(StockMetaBase, TradableEntity):
     __tablename__ = 'stock_detail'
 
     industries = Column(String)

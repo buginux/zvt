@@ -3,7 +3,7 @@ import pandas as pd
 from jqdatapy import get_token, get_money_flow
 
 from zvt import zvt_config
-from zvt.api import generate_kdata_id
+from zvt.api.kdata import generate_kdata_id
 from zvt.contract import IntervalLevel
 from zvt.contract.api import df_to_db
 from zvt.contract.recorder import FixedCycleDataRecorder
@@ -21,14 +21,14 @@ class JoinquantStockMoneyFlowRecorder(FixedCycleDataRecorder):
     provider = 'joinquant'
     data_schema = StockMoneyFlow
 
-    def __init__(self, entity_type='stock', exchanges=['sh', 'sz'], entity_ids=None, codes=None, day_data=False, batch_size=10,
-                 force_update=True, sleeping_time=0, default_size=2000, real_time=False, fix_duplicate_way='ignore',
-                 start_timestamp=None, end_timestamp=None, close_hour=0, close_minute=0, level=IntervalLevel.LEVEL_1DAY,
-                 kdata_use_begin_time=False, one_day_trading_minutes=24 * 60, compute_index_money_flow=False) -> None:
+    def __init__(self, force_update=True, sleeping_time=10, exchanges=None, entity_ids=None, codes=None, day_data=False,
+                 entity_filters=None, ignore_failed=True, real_time=False, fix_duplicate_way='ignore',
+                 start_timestamp=None, end_timestamp=None, level=IntervalLevel.LEVEL_1DAY, kdata_use_begin_time=False,
+                 one_day_trading_minutes=24 * 60, compute_index_money_flow=False) -> None:
+        super().__init__(force_update, sleeping_time, exchanges, entity_ids, codes, day_data, entity_filters,
+                         ignore_failed, real_time, fix_duplicate_way, start_timestamp, end_timestamp, level,
+                         kdata_use_begin_time, one_day_trading_minutes)
         self.compute_index_money_flow = compute_index_money_flow
-        super().__init__(entity_type, exchanges, entity_ids, codes, day_data, batch_size, force_update, sleeping_time,
-                         default_size, real_time, fix_duplicate_way, start_timestamp, end_timestamp, close_hour,
-                         close_minute, level, kdata_use_begin_time, one_day_trading_minutes)
         get_token(zvt_config['jq_username'], zvt_config['jq_password'], force=True)
 
     def generate_domain_id(self, entity, original_data):

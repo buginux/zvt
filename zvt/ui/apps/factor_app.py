@@ -49,9 +49,9 @@ def load_traders():
     account_readers.clear()
     order_readers.clear()
     for trader in traders:
-        account_readers.append(AccountStatsReader(trader_names=[trader.trader_name], level=trader.level))
+        account_readers.append(AccountStatsReader(level=trader.level, trader_names=[trader.trader_name]))
         order_readers.append(
-            OrderReader(trader_names=[trader.trader_name], level=trader.level, start_timestamp=trader.start_timestamp))
+            OrderReader(start_timestamp=trader.start_timestamp, level=trader.level, trader_names=[trader.trader_name]))
 
     trader_names = [item.trader_name for item in traders]
 
@@ -89,7 +89,7 @@ def factor_layout():
                                     dcc.Dropdown(id='entity-type-selector',
                                                  placeholder='select entity type',
                                                  options=[{'label': name, 'value': name} for name in
-                                                          zvt_context.entity_schema_map.keys()],
+                                                          zvt_context.tradable_schema_map.keys()],
                                                  value='stock',
                                                  clearable=False)
                                 ],
@@ -204,7 +204,7 @@ def update_trader_details(trader_index, entity_type):
 
         return account_stats, entity_type_options, entity_options
     else:
-        entity_type_options = [{'label': name, 'value': name} for name in zvt_context.entity_schema_map.keys()]
+        entity_type_options = [{'label': name, 'value': name} for name in zvt_context.tradable_schema_map.keys()]
         account_stats = None
         df = get_entities(entity_type=entity_type, columns=['entity_id', 'code', 'name'], index='entity_id')
         entity_options = [{'label': f'{entity_id}({entity["name"]})', 'value': entity_id} for entity_id, entity in
@@ -273,7 +273,7 @@ def update_factor_details(factor, entity_type, entity, levels, columns, trader_i
             drawers = []
             for level in levels:
                 drawers.append(zvt_context.factor_cls_registry[factor](
-                    entity_schema=zvt_context.entity_schema_map[entity_type],
+                    entity_schema=zvt_context.tradable_schema_map[entity_type],
                     level=level, entity_ids=[entity]).drawer())
             stacked = StackedDrawer(*drawers)
 
@@ -285,7 +285,7 @@ def update_factor_details(factor, entity_type, entity, levels, columns, trader_i
                 level = levels[0]
             else:
                 level = levels
-            drawer = zvt_context.factor_cls_registry[factor](entity_schema=zvt_context.entity_schema_map[entity_type],
+            drawer = zvt_context.factor_cls_registry[factor](entity_schema=zvt_context.tradable_schema_map[entity_type],
                                                              level=level,
                                                              entity_ids=[entity],
                                                              need_persist=False).drawer()

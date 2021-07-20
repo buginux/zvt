@@ -7,6 +7,53 @@
 [![Downloads](https://pepy.tech/badge/zvt/month)](https://pepy.tech/project/zvt)
 
 **Read this in other languages: [English](README-en.md).**  
+## ZVT是什么
+* 市场，几何结构也。Z：震荡，中枢也；V ：趋势，起落也；T ：K线，级别也。
+* 市场，合力也。知各方之力，而不增不减其力，是谓zero vector trader。
+* 市场，人性也。交易，困于其中，非交易之错，人之错也；人，奶头乐，生而被骗，此困局，唯站立，可破之，zvt logo之意也。
+
+## ZVT世界观
+<p align="center"><img src='https://raw.githubusercontent.com/zvtvz/zvt/master/docs/imgs/view.png'/></p>
+
+* 市场由[ActorEntity(参与者)](https://github.com/zvtvz/zvt/blob/master/zvt/contract/schema.py#L323:7) 和[TradableEntity(交易标的)](https://github.com/zvtvz/zvt/blob/master/zvt/contract/schema.py#L207:7)构成
+
+* 关于它们的[事件(故事)](https://github.com/zvtvz/zvt/blob/master/zvt/contract/schema.py#L14:7)发生了
+
+* 它们之间互相影响
+
+## ZVT操盘法
+从 **zvt是什么** 和 **世界观** 可得如下的三段操盘法：
+* 走势分类
+
+比如只做成交活跃的强势股
+* 参与者
+
+比如只做基金重仓的个股
+* 宏观
+
+比如只做成长期的行业
+
+> 这里最关键的就是"只做"，把时间放在重要的东西上，才能不被信息淹没；而三者结合便可兼顾安全和效率
+
+## ZVT愿景
+
+追求市场的公开，透明，系统，平民，避免市场的市井化，神秘化，高深化，贵族化。
+
+> zvt虽然可以做小级别的回测和交易，但通过其提供的**原语**构造自己的**世界观**才是最重要的
+
+## 设计哲学
+* 若无必要，勿增实体
+* 统一性
+* 变与不变
+
+## 解决了什么问题
+* 统一完备的数据模型
+* 数据的持久化和增量更新
+* 数据的扩展
+* 统一的数据更新和查询方式
+* 因子的持久化和有状态计算
+* 多级别多标的回测
+
 
 ZVT是对[fooltrader](https://github.com/foolcage/fooltrader)重新思考后编写的量化项目，其包含可扩展的交易标的，数据recorder，api，因子计算，选股，回测，交易,以及统一的可视化，定位为**中低频** **多级别** **多因子** **多标的** 全市场分析和交易框架。
 
@@ -32,9 +79,11 @@ ZVT是对[fooltrader](https://github.com/foolcage/fooltrader)重新思考后编�
 
 ### 扩展应用例子
 
-[数字货币插件](https://github.com/zvtvz/zvt-ccxt)
+[数字货币插件](https://github.com/zvtvz/zvt_coin)
 
-[定时选股推送](https://github.com/zvtvz/zvt/issues/48)
+[期货插件](https://github.com/zvtvz/zvt_future)
+
+[定时选股推送](https://github.com/zvtvz/zvt/issues/48)（测试使用，勿据此买卖）
 
 > 目前主干代码提供的标的类型为A股，其他标的可以通过plugin的方式来实现
 
@@ -203,7 +252,7 @@ https://www.joinquant.com/default/index/sdk?channelId=953cbf5d1b8683f81f0c40c9d4
 
 > 项目中大部分的免费数据目前都是比较稳定的，且做过严格测试，特别是东财的数据，可放心使用
 
-> 添加其他数据提供商, 请参考[数据扩展教程](https://zvtvz.github.io/zvt/#/data_extending)
+> 添加其他数据提供商， 请参考[数据扩展教程](https://zvtvz.github.io/zvt/#/data_extending)
 
 ## 3. 数据
 下面介绍如何用一种**统一**的方式来回答三个问题：**有什么数据？如何更新数据？如何查询数据？**
@@ -246,7 +295,7 @@ In [5]: IncomeStatement.record_data(codes=['000338'])
 In [5]: CashFlowStatement.record_data(codes=['000338'])
 ```
 
-其他数据依样画葫芦即可。
+其他数据依样画葫芦即可。
 
 > 标准流程就是: Schema.record_data(provoder='your provoder',codes='the codes')
 

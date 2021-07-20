@@ -2,7 +2,8 @@
 import pandas as pd
 from jqdatapy.api import run_query
 
-from zvt.api import portfolio_relate_stock, china_stock_code_to_id
+from zvt.api.portfolio import portfolio_relate_stock
+from zvt.api.utils import china_stock_code_to_id
 from zvt.contract.api import df_to_db
 from zvt.contract.recorder import Recorder, TimeSeriesDataRecorder
 from zvt.domain.meta.fund_meta import Fund, FundStock
@@ -67,13 +68,6 @@ class JqChinaFundStockRecorder(TimeSeriesDataRecorder):
 
     provider = 'joinquant'
     data_schema = FundStock
-
-    def __init__(self, entity_ids=None, codes=None, day_data=True, batch_size=10,
-                 force_update=False, sleeping_time=5, default_size=2000, real_time=False, fix_duplicate_way='add',
-                 start_timestamp=None, end_timestamp=None, close_hour=0, close_minute=0) -> None:
-        super().__init__('fund', ['sh', 'sz'], entity_ids, codes, day_data, batch_size, force_update, sleeping_time,
-                         default_size, real_time, fix_duplicate_way, start_timestamp, end_timestamp, close_hour,
-                         close_minute)
 
     def init_entities(self):
         # 只抓股票型，混合型并且没退市的持仓,

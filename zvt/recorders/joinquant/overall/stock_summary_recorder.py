@@ -31,14 +31,13 @@ class StockSummaryRecorder(TimeSeriesDataRecorder):
     provider = 'joinquant'
     data_schema = StockSummary
 
-    def __init__(self, batch_size=10,
-                 force_update=False, sleeping_time=5, default_size=2000, real_time=False,
-                 fix_duplicate_way='add') -> None:
+    def __init__(self, force_update=False, sleeping_time=5, exchanges=None, entity_ids=None, day_data=False,
+                 entity_filters=None, ignore_failed=True, real_time=False, fix_duplicate_way='add',
+                 start_timestamp=None, end_timestamp=None) -> None:
         # 上海A股,深圳市场,深圳成指,中小板,创业板
         codes = ['000001', '399106', '399001', '399005', '399006']
-        super().__init__('index', ['sh', 'sz'], None, codes, True, batch_size,
-                         force_update, sleeping_time,
-                         default_size, real_time, fix_duplicate_way)
+        super().__init__(force_update, sleeping_time, exchanges, entity_ids, codes, day_data, entity_filters,
+                         ignore_failed, real_time, fix_duplicate_way, start_timestamp, end_timestamp)
 
     def record(self, entity, start, end, size, timestamps):
         jq_code = code_map_jq.get(entity.code)
@@ -74,6 +73,6 @@ class StockSummaryRecorder(TimeSeriesDataRecorder):
 
 
 if __name__ == '__main__':
-    StockSummaryRecorder(batch_size=30).run()
+    StockSummaryRecorder().run()
 # the __all__ is generated
 __all__ = ['StockSummaryRecorder']

@@ -4,7 +4,7 @@ from datetime import timedelta
 from typing import List, Union
 
 import pandas as pd
-from sqlalchemy import Column, String, DateTime, Float, BIGINT
+from sqlalchemy import Column, String, DateTime, Float
 from sqlalchemy.orm import Session
 
 from zvt.contract import IntervalLevel
@@ -59,6 +59,11 @@ class Mixin(object):
             cls.providers.append(provider)
 
     @classmethod
+    def get_providers(cls) -> List[str]:
+        assert hasattr(cls, 'providers')
+        return cls.providers
+
+    @classmethod
     def test_data_correctness(cls, provider, data_samples):
         for data in data_samples:
             item = cls.query_data(provider=provider, ids=[data['id']], return_type='dict')
@@ -68,6 +73,13 @@ class Mixin(object):
                     assert is_same_time(item[0][k], data[k])
                 else:
                     assert item[0][k] == data[k]
+
+    @classmethod
+    def get_one(cls, id, provider_index: int = 0, provider: str = None):
+        from .api import get_one
+        if not provider:
+            provider = cls.providers[provider_index]
+        return get_one(data_schema=cls, id=id, provider=provider)
 
     @classmethod
     def query_data(cls,
@@ -102,19 +114,15 @@ class Mixin(object):
     def record_data(cls,
                     provider_index: int = 0,
                     provider: str = None,
+                    force_update=None,
+                    sleeping_time=None,
                     exchanges=None,
                     entity_ids=None,
                     codes=None,
-                    batch_size=None,
-                    force_update=None,
-                    sleeping_time=None,
-                    default_size=None,
                     real_time=None,
                     fix_duplicate_way=None,
                     start_timestamp=None,
                     end_timestamp=None,
-                    close_hour=None,
-                    close_minute=None,
                     one_day_trading_minutes=None,
                     **kwargs):
         if cls.provider_map_recorder:
@@ -131,7 +139,7 @@ class Mixin(object):
                 args = [item for item in inspect.getfullargspec(cls.record_data).args if
                         item not in ('cls', 'provider_index', 'provider')]
             else:
-                args = ['batch_size', 'force_update', 'sleeping_time']
+                args = ['force_update', 'sleeping_time']
 
             # just fill the None arg to kw,so we could use the recorder_class default args
             kw = {}
@@ -181,18 +189,7 @@ class NormalMixin(Mixin):
     updated_timestamp = Column(DateTime)
 
 
-class Player(Mixin):
-    # 参与者类型
-    player_type = Column(String(length=64))
-    # 所属国家
-    country = Column(String(length=32))
-    # 编码
-    code = Column(String(length=64))
-    # 名字
-    name = Column(String(length=128))
-
-
-class EntityMixin(Mixin):
+class Entity(Mixin):
     # 标的类型
     entity_type = Column(String(length=64))
     # 所属交易所
@@ -206,6 +203,8 @@ class EntityMixin(Mixin):
     # 退市日
     end_date = Column(DateTime)
 
+
+class TradableEntity(Entity):
     @classmethod
     def get_trading_dates(cls, start_date=None, end_date=None):
         """
@@ -225,6 +224,21 @@ class EntityMixin(Mixin):
         :return:[(start,end)]
         """
         return [('09:30', '11:30'), ('13:00', '15:00')]
+
+    @classmethod
+    def in_trading_time(cls, timestamp=None):
+        if not timestamp:
+            timestamp = now_pd_timestamp()
+        else:
+            timestamp = pd.Timestamp(timestamp)
+        open_time = date_and_time(the_date=timestamp.date(), the_time=cls.get_trading_intervals()[0][0])
+        close_time = date_and_time(the_date=timestamp.date(), the_time=cls.get_trading_intervals()[-1][1])
+        return open_time < timestamp < close_time
+
+    @classmethod
+    def get_close_hour_and_minute(cls):
+        hour, minute = cls.get_trading_intervals()[-1][1].split(":")
+        return int(hour), int(minute)
 
     @classmethod
     def get_interval_timestamps(cls, start_date, end_date, level: IntervalLevel):
@@ -306,14 +320,18 @@ class EntityMixin(Mixin):
         return 1
 
 
-class NormalEntityMixin(EntityMixin):
+class ActorEntity(Entity):
+    pass
+
+
+class NormalEntityMixin(TradableEntity):
     # the record created time in db
     created_timestamp = Column(DateTime, default=pd.Timestamp.now())
     # the record updated time in db, some recorder would check it for whether need to refresh
     updated_timestamp = Column(DateTime)
 
 
-class Portfolio(EntityMixin):
+class Portfolio(TradableEntity):
     @classmethod
     def get_stocks(cls,
                    code=None, codes=None, ids=None, timestamp=now_pd_timestamp(), provider=None):
@@ -367,5 +385,33 @@ class PortfolioStockHistory(PortfolioStock):
     market_cap = Column(Float)
 
 
-__all__ = ['EntityMixin', 'Mixin', 'NormalMixin', 'NormalEntityMixin', 'Portfolio', 'PortfolioStock',
-           'PortfolioStockHistory']
+# 交易标的和参与者的关系应该继承自该类, meet,遇见,恰如其分的诠释参与者和交易标的的关系
+# 市场就是参与者与交易标的的关系，类的命名规范为{Entity}{relation}{Entity}，entity_id代表"所"为的entity,"受"者entity以具体类别的id命名
+# 比如StockTopTenHolder:TradableMeetActor中entity_id和actor_id,分别代表股票和股东
+class TradableMeetActor(Mixin):
+    # tradable code
+    code = Column(String(length=64))
+    # tradable name
+    name = Column(String(length=128))
+
+    actor_id = Column(String)
+    actor_type = Column(String)
+    actor_code = Column(String(length=64))
+    actor_name = Column(String(length=128))
+
+
+# 也可以"所"为参与者，"受"为标的
+class ActorMeetTradable(Mixin):
+    # actor code
+    code = Column(String(length=64))
+    # actor name
+    name = Column(String(length=128))
+
+    tradable_id = Column(String)
+    tradable_type = Column(String)
+    tradable_code = Column(String(length=64))
+    tradable_name = Column(String(length=128))
+
+
+__all__ = ['TradableEntity', 'Mixin', 'NormalMixin', 'NormalEntityMixin', 'Portfolio', 'PortfolioStock',
+           'PortfolioStockHistory', 'TradableMeetActor']

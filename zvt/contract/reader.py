@@ -6,7 +6,7 @@ from typing import List, Union, Type, Optional
 
 import pandas as pd
 
-from zvt.contract import IntervalLevel, Mixin, EntityMixin
+from zvt.contract import IntervalLevel, Mixin, TradableEntity
 from zvt.contract.api import get_entities
 from zvt.contract.drawer import Drawable
 from zvt.utils.pd_utils import pd_is_not_null
@@ -48,13 +48,12 @@ class DataReader(Drawable):
 
     def __init__(self,
                  data_schema: Type[Mixin],
-                 entity_schema: Type[EntityMixin],
+                 entity_schema: Type[TradableEntity],
                  provider: str = None,
                  entity_provider: str = None,
                  entity_ids: List[str] = None,
                  exchanges: List[str] = None,
                  codes: List[str] = None,
-                 the_timestamp: Union[str, pd.Timestamp] = None,
                  start_timestamp: Union[str, pd.Timestamp] = None,
                  end_timestamp: Union[str, pd.Timestamp] = now_pd_timestamp(),
                  columns: List = None,
@@ -74,13 +73,8 @@ class DataReader(Drawable):
         self.provider = provider
         self.entity_provider = entity_provider
 
-        self.the_timestamp = the_timestamp
-        if the_timestamp:
-            self.start_timestamp = the_timestamp
-            self.end_timestamp = the_timestamp
-        else:
-            self.start_timestamp = start_timestamp
-            self.end_timestamp = end_timestamp
+        self.start_timestamp = start_timestamp
+        self.end_timestamp = end_timestamp
 
         self.start_timestamp = to_pd_timestamp(self.start_timestamp)
         self.end_timestamp = to_pd_timestamp(self.end_timestamp)
