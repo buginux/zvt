@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
-
-from jqdatapy.api import get_fundamentals
+import pandas as pd
+import requests
+from tenacity import retry, wait_fixed, stop_after_attempt
 
 from zvt.api.utils import to_report_period_type
 from zvt.contract.api import get_data
@@ -36,20 +37,6 @@ class BaseChinaStockFinanceRecorder(EastmoneyTimestampsDataRecorder):
     timestamps_fetching_url = 'https://emh5.eastmoney.com/api/CaiWuFenXi/GetCompanyReportDateList'
     timestamp_list_path_fields = ['CompanyReportDateList']
     timestamp_path_fields = ['ReportDate']
-
-    def __init__(self, exchanges=None, entity_ids=None, codes=None, day_data=False,
-                 force_update=False, sleeping_time=5, real_time=False,
-                 fix_duplicate_way='add', start_timestamp=None, end_timestamp=None) -> None:
-        super().__init__(force_update, sleeping_time, exchanges, entity_ids, codes, day_data, real_time=real_time,
-                         fix_duplicate_way=fix_duplicate_way, start_timestamp=start_timestamp,
-                         end_timestamp=end_timestamp)
-
-        try:
-            self.fetch_jq_timestamp = True
-        except Exception as e:
-            self.fetch_jq_timestamp = False
-            self.logger.warning(
-                f'joinquant account not ok,the timestamp(publish date) for finance would be not correct', e)
 
     def init_timestamps(self, entity):
         param = {
@@ -120,26 +107,36 @@ class BaseChinaStockFinanceRecorder(EastmoneyTimestampsDataRecorder):
     def get_original_time_field(self):
         return 'ReportDate'
 
-    def fill_timestamp_with_jq(self, security_item, the_data):
-        # get report published date from jq
-        try:
-            df = get_fundamentals(table='indicator', code=to_jq_entity_id(security_item), columns='pubDate',
-                                  date=to_jq_report_period(the_data.report_date), count=None, parse_dates=['pubDate'])
-            if pd_is_not_null(df):
-                the_data.timestamp = to_pd_timestamp(df['pubDate'][0])
-                self.logger.info(
-                    'jq fill {} {} timestamp:{} for report_date:{}'.format(self.data_schema, security_item.id,
-                                                                           the_data.timestamp,
-                                                                           the_data.report_date))
-                self.session.commit()
-        except Exception as e:
-            self.logger.error(e)
+    @retry(wait=wait_fixed(20), stop=stop_after_attempt(10))
+    def get_report_date(self, security_item):
+        notice_date_url = 'https://datacenter.eastmoney.com/api/data/get?type=RPT_LICO_FN_CPD&sty=SECURITY_CODE,SECURITY_NAME_ABBR,TRADE_MARKET_CODE,TRADE_MARKET,SECURITY_TYPE_CODE,SECURITY_TYPE,UPDATE_DATE,REPORTDATE,BASIC_EPS,TOTAL_OPERATE_INCOME,PARENT_NETPROFIT,YSTZ,SJLTZ,NOTICE_DATE,ORG_CODE,TRADE_MARKET_ZJG,ISNEW,QDATE,DATATYPE,DATAYEAR,DATEMMDD&p=1&ps=200&filter=(SECURITY_CODE%3D%22{}%22)&st=REPORTDATE,EITIME&sr=-1,-1&source=DataCenter&client=WEB'
+        url = notice_date_url.format(security_item.code)
+
+        data = requests.get(url)
+        data.raise_for_status()
+
+        json_data = data.json()
+        result_data = json_data['result']['data']
+
+        df = pd.DataFrame(result_data)
+
+        return df
+
+    def fill_timestamp(self, security_item, records):
+        df = self.get_report_date(security_item)
+        df = df.set_index('REPORTDATE')
+
+        if pd_is_not_null(df):
+            for record in records:
+                report_date_str = record.report_date.strftime('%Y-%m-%d 00:00:00')
+                record.timestamp = to_pd_timestamp(df.at[report_date_str, 'NOTICE_DATE'])
+                record.update_date = to_pd_timestamp(df.at[report_date_str, 'UPDATE_DATE'])
+
+            self.logger.info('fill {} {} report notice date'.format(self.data_schema, security_item.id))
+            self.session.commit()
 
     def on_finish_entity(self, entity):
         super().on_finish_entity(entity)
-
-        if not self.fetch_jq_timestamp:
-            return
 
         # fill the timestamp for report published date
         the_data_list = get_data(data_schema=self.data_schema,
@@ -148,18 +145,15 @@ class BaseChinaStockFinanceRecorder(EastmoneyTimestampsDataRecorder):
                                  order=self.data_schema.timestamp.asc(),
                                  return_type='domain',
                                  session=self.session,
-                                 filters=[self.data_schema.timestamp == self.data_schema.report_date,
-                                          self.data_schema.timestamp >= to_pd_timestamp('2005-01-01')])
+                                 filters=[self.data_schema.timestamp == self.data_schema.report_date])
         if the_data_list:
             if self.data_schema == FinanceFactor:
-                for the_data in the_data_list:
-                    self.fill_timestamp_with_jq(entity, the_data)
+                self.fill_timestamp(entity, the_data_list)
             else:
                 df = FinanceFactor.query_data(entity_id=entity.id,
                                               columns=[FinanceFactor.timestamp, FinanceFactor.report_date,
                                                        FinanceFactor.id],
                                               filters=[FinanceFactor.timestamp != FinanceFactor.report_date,
-                                                       FinanceFactor.timestamp >= to_pd_timestamp('2005-01-01'),
                                                        FinanceFactor.report_date >= the_data_list[0].report_date,
                                                        FinanceFactor.report_date <= the_data_list[-1].report_date, ])
 

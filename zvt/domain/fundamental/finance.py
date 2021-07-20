@@ -22,6 +22,7 @@ class BalanceSheet(FinanceBase, Mixin):
 
     report_period = Column(String(length=32))
     report_date = Column(DateTime)
+    update_date = Column(DateTime)
 
     # 流动资产
     #
@@ -463,6 +464,7 @@ class IncomeStatementCommon(Mixin):
 
     report_period = Column(String(length=32))
     report_date = Column(DateTime)
+    update_date = Column(DateTime)
 
     # 营业总收入
     #
@@ -622,6 +624,8 @@ class CashFlowStatementCommon(Mixin):
 
     report_period = Column(String(length=32))
     report_date = Column(DateTime)
+    update_date = Column(DateTime)
+
     # 经营活动产生的现金流量
     #
     # 销售商品、提供劳务收到的现金
@@ -824,6 +828,8 @@ class FinanceFactor(FinanceBase, Mixin):
 
     report_period = Column(String(length=32))
     report_date = Column(DateTime)
+    update_date = Column(DateTime)
+
     # 每股指标
     #
     # 基本每股收益(元)
