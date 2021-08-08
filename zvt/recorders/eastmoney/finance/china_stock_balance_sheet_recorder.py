@@ -40,6 +40,8 @@ balance_sheet_map = {
     "fixed_assets": "Fixedasset",
     # 在建工程
     "construction_in_process": "Constructionprogress",
+    # 开发支出
+    "development_cost": 'Developexp',
     # 无形资产
     "intangible_assets": "Intangibleasset",
     # 商誉
@@ -449,5 +451,5 @@ __all__ = ['ChinaStockBalanceSheetRecorder']
 
 if __name__ == '__main__':
     # init_log('blance_sheet.log')
-    recorder = ChinaStockBalanceSheetRecorder(codes=['002572'])
+    recorder = ChinaStockBalanceSheetRecorder(codes=None, sleeping_time=0.0)
     recorder.run()

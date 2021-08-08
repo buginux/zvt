@@ -60,6 +60,8 @@ class BalanceSheet(FinanceBase, Mixin):
     construction_in_process = Column(Float)
     # 无形资产
     intangible_assets = Column(Float)
+    # 开发支出
+    development_cost = Column(Float)
     # 商誉
     goodwill = Column(Float)
     # 长期待摊费用
