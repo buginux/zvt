@@ -129,10 +129,19 @@ class ActorType(Enum):
 
 
 class TradableType(Enum):
+    # A股(中国)
     stock = 'stock'
+    # 美股
+    stockus = 'stockus'
+    # 港股
+    stockhk = 'stockhk'
+    # 期货(中国)
     future = 'future'
+    # 数字货币
     coin = 'coin'
+    # 期权
     option = 'option'
+    # 基金
     fund = 'fund'
 
 
@@ -141,6 +150,18 @@ class Exchange(Enum):
     sh = 'sh'
     # 深证交易所
     sz = 'sz'
+
+    # 对于中国的非交易所的 标的
+    cn = 'cn'
+
+    # 纳斯达克
+    nasdaq = 'nasdaq'
+
+    # 纽交所
+    nyse = 'nyse'
+
+    # 港交所
+    hk = 'hk'
 
     # 数字货币
     binance = 'binance'
@@ -156,9 +177,29 @@ class Exchange(Enum):
     cffex = 'cffex'
 
 
-from . import zvt_context
-from .schema import Mixin, NormalMixin, TradableEntity, NormalEntityMixin, PortfolioStock, Portfolio, \
-    PortfolioStockHistory
+tradable_type_map_exchanges = {
+    TradableType.stock: [Exchange.sh, Exchange.sz],
+    TradableType.stockhk: [Exchange.hk],
+    TradableType.stockus: [Exchange.nasdaq, Exchange.nyse],
 
-__all__ = ['IntervalLevel', 'Mixin', 'NormalMixin', 'TradableEntity', 'NormalEntityMixin', 'zvt_context', 'AdjustType',
-           'Portfolio', 'PortfolioStock', 'PortfolioStockHistory']
+    TradableType.future: [Exchange.shfe, Exchange.dce, Exchange.czce, Exchange.cffex],
+
+    TradableType.coin: [Exchange.binance, Exchange.huobipro]
+}
+
+
+def get_entity_exchanges(entity_type):
+    entity_type = TradableType(entity_type)
+    return tradable_type_map_exchanges.get(entity_type)
+
+
+from . import zvt_context
+
+# the __all__ is generated
+__all__ = ['IntervalLevel', 'AdjustType', 'ActorType', 'TradableType', 'Exchange', 'zvt_context']
+
+# import all from submodule schema
+from .schema import *
+from .schema import __all__ as _schema_all
+
+__all__ += _schema_all

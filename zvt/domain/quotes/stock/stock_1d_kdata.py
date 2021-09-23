@@ -15,7 +15,7 @@ class Stock1dKdata(KdataBase, StockKdataCommon):
     pre_close = Column(Float)
 
 
-register_schema(providers=['joinquant', 'joudou'], db_name='stock_1d_kdata', schema_base=KdataBase, entity_type='stock')
+register_schema(providers=['joinquant', 'joudou', 'em'], db_name='stock_1d_kdata', schema_base=KdataBase, entity_type='stock')
 
 # the __all__ is generated
 __all__ = ['Stock1dKdata']

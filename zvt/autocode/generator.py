@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import logging
 import os
 from typing import List
 
@@ -7,6 +8,8 @@ from zvt.contract import IntervalLevel, AdjustType
 from zvt.utils import now_pd_timestamp
 from zvt.utils.file_utils import list_all_files
 from zvt.utils.git_utils import get_git_user_name, get_git_user_email
+
+logger = logging.getLogger(__name__)
 
 
 def all_sub_modules(dir_path: str):
@@ -81,7 +84,7 @@ def fill_package(dir_path: str):
                     outfile.write(package_template)
 
 
-def gen_exports(dir_path='./domain', gen_flag='# the __all__ is generated'):
+def gen_exports(dir_path='./domain', gen_flag='# the __all__ is generated', export_from_package=True):
     fill_package_if_not_exist(dir_path=dir_path)
     files = list_all_files(dir_path=dir_path)
     for file in files:
@@ -103,18 +106,19 @@ def gen_exports(dir_path='./domain', gen_flag='# the __all__ is generated'):
         lines.append(f'\n__all__ = {exports}')
 
         # the package module
-        basename = os.path.basename(file)
-        if basename == '__init__.py':
-            dir_path = os.path.dirname(file)
-            modules = all_sub_modules(dir_path)
-            if modules:
-                lines.append('''
+        if export_from_package:
+            basename = os.path.basename(file)
+            if basename == '__init__.py':
+                dir_path = os.path.dirname(file)
+                modules = all_sub_modules(dir_path)
+                if modules:
+                    lines.append('''
 
 # __init__.py structure:
 # common code of the package
 # export interface in __all__ which contains __all__ of its sub modules''')
-                for mod in modules:
-                    lines.append(all_sub_all(mod))
+                    for mod in modules:
+                        lines.append(all_sub_all(mod))
 
         # write with __all__
         with open(file, mode='w') as fp:
@@ -129,9 +133,11 @@ def gen_kdata_schema(pkg: str,
                      providers: List[str],
                      entity_type: str,
                      levels: List[IntervalLevel],
-                     adjust_types: List[AdjustType] = [None],
+                     adjust_types=None,
                      entity_in_submodule: bool = False,
                      kdata_module='quotes'):
+    if adjust_types is None:
+        adjust_types = [None]
     tables = []
 
     base_path = './domain'
@@ -140,6 +146,10 @@ def gen_kdata_schema(pkg: str,
         base_path = os.path.join(base_path, kdata_module)
     if entity_in_submodule:
         base_path = os.path.join(base_path, entity_type)
+
+    if not os.path.exists(base_path):
+        logger.info(f'create dir {base_path}')
+        os.makedirs(base_path)
 
     for level in levels:
 
