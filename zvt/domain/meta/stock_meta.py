@@ -28,6 +28,8 @@ class StockDetail(StockMetaBase, TradableEntity):
     # 所属区域
     area_indices = Column(String)
 
+    # 曾用名
+    previous_name = Column(String)
     # 成立日期
     date_of_establishment = Column(DateTime)
     # 公司简介
