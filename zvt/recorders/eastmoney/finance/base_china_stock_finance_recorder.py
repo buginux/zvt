@@ -107,9 +107,9 @@ class BaseChinaStockFinanceRecorder(EastmoneyTimestampsDataRecorder):
     def get_original_time_field(self):
         return 'ReportDate'
 
-    @retry(wait=wait_fixed(20), stop=stop_after_attempt(10))
+    # @retry(wait=wait_fixed(20), stop=stop_after_attempt(10))
     def get_report_date(self, security_item):
-        notice_date_url = 'https://datacenter.eastmoney.com/api/data/get?type=RPT_LICO_FN_CPD&sty=SECURITY_CODE,SECURITY_NAME_ABBR,TRADE_MARKET_CODE,TRADE_MARKET,SECURITY_TYPE_CODE,SECURITY_TYPE,UPDATE_DATE,REPORTDATE,BASIC_EPS,TOTAL_OPERATE_INCOME,PARENT_NETPROFIT,YSTZ,SJLTZ,NOTICE_DATE,ORG_CODE,TRADE_MARKET_ZJG,ISNEW,QDATE,DATATYPE,DATAYEAR,DATEMMDD&p=1&ps=200&filter=(SECURITY_CODE%3D%22{}%22)&st=REPORTDATE,EITIME&sr=-1,-1&source=DataCenter&client=WEB'
+        notice_date_url = 'http://datacenter.eastmoney.com/api/data/get?type=RPT_LICO_FN_CPD&sty=SECURITY_CODE,SECURITY_NAME_ABBR,TRADE_MARKET_CODE,TRADE_MARKET,SECURITY_TYPE_CODE,SECURITY_TYPE,UPDATE_DATE,REPORTDATE,BASIC_EPS,TOTAL_OPERATE_INCOME,PARENT_NETPROFIT,YSTZ,SJLTZ,NOTICE_DATE,ORG_CODE,TRADE_MARKET_ZJG,ISNEW,QDATE,DATATYPE,DATAYEAR,DATEMMDD&p=1&ps=200&filter=(SECURITY_CODE%3D%22{}%22)&st=REPORTDATE,EITIME&sr=-1,-1&source=DataCenter&client=WEB'
         url = notice_date_url.format(security_item.code)
 
         data = requests.get(url)
@@ -123,17 +123,22 @@ class BaseChinaStockFinanceRecorder(EastmoneyTimestampsDataRecorder):
         return df
 
     def fill_timestamp(self, security_item, records):
-        df = self.get_report_date(security_item)
-        df = df.set_index('REPORTDATE')
 
-        if pd_is_not_null(df):
-            for record in records:
-                report_date_str = record.report_date.strftime('%Y-%m-%d 00:00:00')
-                record.timestamp = to_pd_timestamp(df.at[report_date_str, 'NOTICE_DATE'])
-                record.update_date = to_pd_timestamp(df.at[report_date_str, 'UPDATE_DATE'])
+        try:
+            df = self.get_report_date(security_item)
+            df = df.set_index('REPORTDATE')
 
-            self.logger.info('fill {} {} report notice date'.format(self.data_schema, security_item.id))
-            self.session.commit()
+            if pd_is_not_null(df):
+                for record in records:
+                    report_date_str = record.report_date.strftime('%Y-%m-%d 00:00:00')
+                    if report_date_str in df.index:
+                        record.timestamp = to_pd_timestamp(df.at[report_date_str, 'NOTICE_DATE'])
+                        record.update_date = to_pd_timestamp(df.at[report_date_str, 'UPDATE_DATE'])
+
+                self.logger.info('fill {} {} report notice date'.format(self.data_schema, security_item.id))
+                self.session.commit()
+        except Exception as e:
+            self.logger.error(e)
 
     def on_finish_entity(self, entity):
         super().on_finish_entity(entity)
@@ -174,5 +179,5 @@ class BaseChinaStockFinanceRecorder(EastmoneyTimestampsDataRecorder):
                         #                                                                    security_item.id,
                         #                                                                    the_data.timestamp,
                         #                                                                    the_data.report_date))
+                        self.fill_timestamp(entity, the_data_list)
 
-                        self.fill_timestamp_with_jq(entity, the_data)
