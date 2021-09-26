@@ -13,40 +13,24 @@ from zvt.utils.time_utils import to_time_str, TIME_FORMAT_DAY, TIME_FORMAT_ISO86
 
 
 class JoudouChinaStockKdataRecorder(FixedCycleDataRecorder):
-    entity_provider = 'eastmoney'
+    entity_provider = 'em'
     entity_schema = StockDetail
 
-    provider = 'joudou'
+    provider = 'xbx'
     data_schema = Stock1dKdata
 
     url = 'https://www.joudou.com/stockinfogate/kchartdata/{}.{}'
 
-    def __init__(self,
-                 exchanges=['sh', 'sz'],
-                 entity_ids=None,
-                 codes=None,
-                 batch_size=10,
-                 force_update=True,
-                 sleeping_time=0,
-                 default_size=2000,
-                 real_time=False,
-                 fix_duplicate_way='ignore',
-                 start_timestamp=None,
-                 end_timestamp=None,
-                 level=IntervalLevel.LEVEL_1DAY,
-                 kdata_use_begin_time=False,
-                 close_hour=15,
-                 close_minute=0,
-                 one_day_trading_minutes=4 * 60):
-        level = IntervalLevel(level)
-        super(JoudouChinaStockKdataRecorder, self).__init__('stock', exchanges, entity_ids, codes, batch_size, force_update, sleeping_time,
-                         default_size, real_time, fix_duplicate_way, start_timestamp, end_timestamp, close_hour,
-                         close_minute, level, kdata_use_begin_time, one_day_trading_minutes)
-
     def record(self, entity, start, end, size, timestamps):
         resp = requests.get(self.url.format(entity.code, entity.exchange.upper()))
+        resp.raise_for_status()
+
         json_resp = resp.json()
         data_resp = json_resp.get('data', {})
+
+        if isinstance(data_resp, list) and len(data_resp) == 0:
+            self.logger.info(f'No kdata for {entity.id}, skip...')
+            return None
 
         origin_price = data_resp.get('origin', [])
         origin_df = pd.DataFrame(origin_price)
@@ -75,6 +59,7 @@ class JoudouChinaStockKdataRecorder(FixedCycleDataRecorder):
 
             df['id'] = df[['entity_id', 'timestamp']].apply(generate_kdata_id, axis=1)
             df = df.drop_duplicates(subset='id', keep='last')
+            df = df[df['timestamp'] >= start]
 
             df_to_db(df=df, data_schema=self.data_schema, provider=self.provider, force_update=True)
         else:
@@ -83,4 +68,4 @@ class JoudouChinaStockKdataRecorder(FixedCycleDataRecorder):
 
 if __name__ == '__main__':
     init_log('joudou_china_stock_1d_kdata.log')
-    JoudouChinaStockKdataRecorder(level=IntervalLevel('1d'), sleeping_time=0, codes=['000100', '000600'], real_time=False).run()
+    JoudouChinaStockKdataRecorder(level=IntervalLevel('1d'), sleeping_time=0, codes=['600000'], real_time=False).run()
