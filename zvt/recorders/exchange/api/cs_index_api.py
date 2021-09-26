@@ -30,6 +30,8 @@ sh_category_map_url = {
 
 def _get_resp_data(resp: requests.Response):
     resp.raise_for_status()
+    resp.encoding = 'utf-8-sig'
+
     return resp.json()['list']
 
 
