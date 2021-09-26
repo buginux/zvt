@@ -25,6 +25,10 @@ class XbxStockKdataRecorder(FixedCycleDataRecorder):
         filename = f'{entity.exchange.lower()}{entity.code}.csv'
         fullpath = os.path.join(stock_directories, filename)
 
+        if not os.path.exists(fullpath):
+            self.logger.info(f'{fullpath} does not exists, skip...')
+            return
+
         df = pd.read_csv(fullpath, encoding='GBK', skiprows=1)
         df = df[['股票代码', '股票名称', '交易日期', '开盘价', '最高价', '最低价', '收盘价', '前收盘价', '成交量',
                  '成交额']]
@@ -62,4 +66,4 @@ class XbxStockKdataRecorder(FixedCycleDataRecorder):
 
 if __name__ == '__main__':
     init_log('xbx_stock_kdata.log')
-    XbxStockKdataRecorder(sleeping_time=0.0, end_timestamp='2021-09-22', codes=['000001', '600000']).run()
+    XbxStockKdataRecorder(sleeping_time=0.0, end_timestamp='2021-09-22', codes=['301083', '001219', '605567']).run()
