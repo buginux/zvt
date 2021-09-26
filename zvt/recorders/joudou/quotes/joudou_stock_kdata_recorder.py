@@ -7,14 +7,14 @@ from zvt import init_log
 from zvt.contract import IntervalLevel
 from zvt.contract.api import df_to_db
 from zvt.contract.recorder import FixedCycleDataRecorder
-from zvt.domain import Stock, StockKdataCommon, Stock1dKdata
+from zvt.domain import StockDetail, Stock1dKdata
 from zvt.utils.pd_utils import pd_is_not_null
 from zvt.utils.time_utils import to_time_str, TIME_FORMAT_DAY, TIME_FORMAT_ISO8601
 
 
 class JoudouChinaStockKdataRecorder(FixedCycleDataRecorder):
     entity_provider = 'eastmoney'
-    entity_schema = Stock
+    entity_schema = StockDetail
 
     provider = 'joudou'
     data_schema = Stock1dKdata
@@ -63,7 +63,7 @@ class JoudouChinaStockKdataRecorder(FixedCycleDataRecorder):
             df['name'] = entity.name
             df['entity_id'] = entity.id
             df['timestamp'] = pd.to_datetime(df['timestamp'], format='%Y%m%d')
-            df['provider'] = 'joudou'
+            df['provider'] = 'xbx'
             df['level'] = self.level.value
             df['code'] = entity.code
 
@@ -77,11 +77,9 @@ class JoudouChinaStockKdataRecorder(FixedCycleDataRecorder):
             df = df.drop_duplicates(subset='id', keep='last')
 
             df_to_db(df=df, data_schema=self.data_schema, provider=self.provider, force_update=True)
+        else:
+            self.logger.info(f'No kdata for {entity.id}')
 
-        return None
-
-
-from zvt.api.quote import get_kdata
 
 if __name__ == '__main__':
     init_log('joudou_china_stock_1d_kdata.log')
