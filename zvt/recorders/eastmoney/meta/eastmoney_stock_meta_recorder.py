@@ -83,8 +83,11 @@ class EastmoneyChinaStockDetailRecorder(Recorder):
 
             resp_json = resp.json()['Result']['FaXingXiangGuan']
 
-            security_item.list_date = to_pd_timestamp(resp_json['ListedDate'])
-            security_item.timestamp = to_pd_timestamp(resp_json['ListedDate'])
+            listed_date_string = resp_json['ListedDate']
+            # 未上市新股为 '--'
+            if listed_date_string != '--':
+                security_item.list_date = to_pd_timestamp(listed_date_string)
+                security_item.timestamp = to_pd_timestamp(listed_date_string)
             security_item.issue_pe = to_float(resp_json['PEIssued'])
             security_item.price = to_float(resp_json['IssuePrice'])
             security_item.issues = to_float(resp_json['ShareIssued'])
@@ -100,7 +103,7 @@ class EastmoneyChinaStockDetailRecorder(Recorder):
 
 if __name__ == '__main__':
     # init_log('china_stock_meta.log')
-    StockDetail.record_data(codes=None, provider='em')
+    EastmoneyChinaStockDetailRecorder(code='001216').run()
 
 # the __all__ is generated
 __all__ = ['EastmoneyChinaStockDetailRecorder']
