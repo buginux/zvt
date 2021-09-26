@@ -30,6 +30,10 @@ class JoudouChinaStockKdataRecorder(FixedCycleDataRecorder):
             return None
 
         origin_price = data_resp.get('origin', [])
+        if len(origin_price) == 0:
+            self.logger.info(f'No kdata for {entity.id}, skip...')
+            return None
+
         origin_df = pd.DataFrame(origin_price)
         origin_df.columns = ['timestamp', 'close', 'open', 'high', 'low', 'price_change', 'change_pct', 'ma', 'pre_close']
 
@@ -76,4 +80,4 @@ class JoudouChinaStockKdataRecorder(FixedCycleDataRecorder):
 
 if __name__ == '__main__':
     init_log('joudou_china_stock_1d_kdata.log')
-    JoudouChinaStockKdataRecorder(level=IntervalLevel('1d'), sleeping_time=0, codes=['600000'], real_time=False).run()
+    JoudouChinaStockKdataRecorder(level=IntervalLevel('1d'), sleeping_time=0, codes=['600087'], real_time=False).run()
