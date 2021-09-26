@@ -3,6 +3,8 @@
 import pandas as pd
 import requests
 
+from tenacity import retry, wait_fixed, stop_after_attempt
+
 from zvt import init_log
 from zvt.contract import IntervalLevel
 from zvt.contract.api import df_to_db
@@ -22,12 +24,7 @@ class JoudouChinaStockKdataRecorder(FixedCycleDataRecorder):
     url = 'https://www.joudou.com/stockinfogate/kchartdata/{}.{}'
 
     def record(self, entity, start, end, size, timestamps):
-        resp = requests.get(self.url.format(entity.code, entity.exchange.upper()))
-        resp.raise_for_status()
-
-        json_resp = resp.json()
-        data_resp = json_resp.get('data', {})
-
+        data_resp = self.query_historical_data(self.url.format(entity.code, entity.exchange.upper()))
         if isinstance(data_resp, list) and len(data_resp) == 0:
             self.logger.info(f'No kdata for {entity.id}, skip...')
             return None
@@ -64,6 +61,17 @@ class JoudouChinaStockKdataRecorder(FixedCycleDataRecorder):
             df_to_db(df=df, data_schema=self.data_schema, provider=self.provider, force_update=True)
         else:
             self.logger.info(f'No kdata for {entity.id}')
+
+    @staticmethod
+    @retry(stop=stop_after_attempt(20), wait=wait_fixed(10))
+    def query_historical_data(url):
+        resp = requests.get(url)
+        resp.raise_for_status()
+
+        json_resp = resp.json()
+        data_resp = json_resp.get('data', {})
+
+        return data_resp
 
 
 if __name__ == '__main__':
