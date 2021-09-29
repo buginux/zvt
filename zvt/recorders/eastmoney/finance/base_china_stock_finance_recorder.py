@@ -121,7 +121,7 @@ class BaseChinaStockFinanceRecorder(EastmoneyTimestampsDataRecorder):
     def get_original_time_field(self):
         return 'ReportDate'
 
-    # @retry(wait=wait_fixed(20), stop=stop_after_attempt(10))
+    @retry(wait=wait_fixed(20), stop=stop_after_attempt(10))
     def get_report_date(self, security_item):
         notice_date_url = 'http://datacenter.eastmoney.com/api/data/get?type=RPT_LICO_FN_CPD&sty=SECURITY_CODE,SECURITY_NAME_ABBR,TRADE_MARKET_CODE,TRADE_MARKET,SECURITY_TYPE_CODE,SECURITY_TYPE,UPDATE_DATE,REPORTDATE,BASIC_EPS,TOTAL_OPERATE_INCOME,PARENT_NETPROFIT,YSTZ,SJLTZ,NOTICE_DATE,ORG_CODE,TRADE_MARKET_ZJG,ISNEW,QDATE,DATATYPE,DATAYEAR,DATEMMDD&p=1&ps=200&filter=(SECURITY_CODE%3D%22{}%22)&st=REPORTDATE,EITIME&sr=-1,-1&source=DataCenter&client=WEB'
         url = notice_date_url.format(security_item.code)
@@ -130,19 +130,22 @@ class BaseChinaStockFinanceRecorder(EastmoneyTimestampsDataRecorder):
         data.raise_for_status()
 
         json_data = data.json()
-        result_data = json_data['result']['data']
 
+        success = json_data.get('success', False)
+        if not success:
+            return None
+
+        result_data = json_data['result']['data']
         df = pd.DataFrame(result_data)
 
         return df
 
     def fill_timestamp(self, security_item, records):
-
         try:
             df = self.get_report_date(security_item)
-            df = df.set_index('REPORTDATE')
 
             if pd_is_not_null(df):
+                df = df.set_index('REPORTDATE')
                 for record in records:
                     report_date_str = record.report_date.strftime('%Y-%m-%d 00:00:00')
                     if report_date_str in df.index:
