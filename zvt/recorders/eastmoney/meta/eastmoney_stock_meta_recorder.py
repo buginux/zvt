@@ -92,7 +92,7 @@ class EastmoneyChinaStockDetailRecorder(Recorder):
             self.logger.info('finish recording stock meta for:{}'.format(security_item.code))
 
     @staticmethod
-    @retry(wait_fixed=20, stop_after_attempt=10)
+    @retry(wait=wait_fixed(20), stop=stop_after_attempt(10))
     def fetch_basic_information(param):
         resp = requests.post('https://emh5.eastmoney.com/api/GongSiGaiKuang/GetJiBenZiLiao', json=param)
         resp.encoding = 'utf8'
@@ -101,7 +101,7 @@ class EastmoneyChinaStockDetailRecorder(Recorder):
         return resp_json
 
     @staticmethod
-    @retry(wait_fixed=20, stop_after_attempt=10)
+    @retry(wait=wait_fixed(20), stop=stop_after_attempt(10))
     def fetch_issue_information(param):
         resp = requests.post('https://emh5.eastmoney.com/api/GongSiGaiKuang/GetFaXingXiangGuan', json=param)
         resp.encoding = 'utf8'
