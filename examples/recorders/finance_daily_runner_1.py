@@ -6,8 +6,12 @@ import time
 from apscheduler.schedulers.background import BackgroundScheduler
 from zvt.informer.informer import WeWorkInformer
 
-from zvt.recorders.eastmoney.finance.china_stock_income_statement_recorder import ChinaStockIncomeStatementRecorder, \
+from zvt.recorders.eastmoney.finance.eastmoney_finance_factor_recorder import ChinaStockFinanceFactorRecorder
+from zvt.recorders.eastmoney.finance.eastmoney_income_statement_recorder import (
+    ChinaStockIncomeStatementRecorder,
     ChinaStockIncomeStatementSeasonalRecorder
+)
+
 from zvt import init_log
 
 logger = logging.getLogger(__name__)
@@ -16,12 +20,13 @@ sched = BackgroundScheduler()
 wework = WeWorkInformer()
 
 
-@sched.scheduled_job('cron', day_of_week='sun,thu', hour=4, minute=30)
+@sched.scheduled_job('cron', hour=22, minute=00)
 def run():
     err_count = 0
 
     while True:
         try:
+            ChinaStockFinanceFactorRecorder(sleeping_time=0.0).run()
             ChinaStockIncomeStatementRecorder(sleeping_time=0.0).run()
             ChinaStockIncomeStatementSeasonalRecorder(sleeping_time=0.0).run()
 
@@ -35,12 +40,12 @@ def run():
                 wework.send_message(f'利润表下载出错超过 {err_count} 次, 请检查...\n{e}')
                 err_count = 0
 
-            logger.exception('finance income statement runner 1 error:{}'.format(e))
+            logger.exception('finance balance sheet runner error:{}'.format(e))
             time.sleep(60)
 
 
 if __name__ == '__main__':
-    init_log('eastmoney_income_statement.log')
+    init_log('finance_daily_runner_1.log')
 
     run()
 

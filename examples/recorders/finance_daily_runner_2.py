@@ -6,7 +6,12 @@ import time
 from apscheduler.schedulers.background import BackgroundScheduler
 from zvt.informer.informer import WeWorkInformer
 
-from zvt.recorders.eastmoney.finance.china_stock_balance_sheet_recorder import ChinaStockBalanceSheetRecorder
+from zvt.recorders.eastmoney.finance.eastmoney_balance_sheet_recorder import ChinaStockBalanceSheetRecorder
+from zvt.recorders.eastmoney.finance.eastmoney_cash_flow_recorder import (
+    ChinaStockCashFlowRecorder,
+    ChinaStockCashFlowSeasonalRecorder
+)
+
 from zvt import init_log
 
 logger = logging.getLogger(__name__)
@@ -15,13 +20,15 @@ sched = BackgroundScheduler()
 wework = WeWorkInformer()
 
 
-@sched.scheduled_job('cron', day_of_week='tue,sat', hour=1, minute=00)
+@sched.scheduled_job('cron', hour=4, minute=00)
 def run():
     err_count = 0
 
     while True:
         try:
             ChinaStockBalanceSheetRecorder(sleeping_time=0.0).run()
+            ChinaStockCashFlowRecorder(sleeping_time=0.0).run()
+            ChinaStockCashFlowSeasonalRecorder(sleeping_time=0.0).run()
 
             wework.send_finished_message('资产负债表')
             err_count = 0
@@ -38,7 +45,7 @@ def run():
 
 
 if __name__ == '__main__':
-    init_log('eastmoney_finance_balance_sheet.log')
+    init_log('finance_daily_runner_2.log')
 
     run()
 
