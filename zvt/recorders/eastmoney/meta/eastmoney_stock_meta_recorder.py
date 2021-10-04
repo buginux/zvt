@@ -2,6 +2,8 @@
 
 import requests
 
+from tenacity import retry, wait_fixed, stop_after_attempt
+
 from zvt.contract.api import get_entities
 from zvt.contract.recorder import Recorder
 from zvt.recorders.em.meta.em_stock_meta_recorder import EMStockRecorder
@@ -50,10 +52,7 @@ class EastmoneyChinaStockDetailRecorder(Recorder):
 
             # 基本资料
             param = {"color": "w", "fc": fc, "SecurityCode": "SZ300059"}
-            resp = requests.post('https://emh5.eastmoney.com/api/GongSiGaiKuang/GetJiBenZiLiao', json=param)
-            resp.encoding = 'utf8'
-
-            resp_json = resp.json()['Result']['JiBenZiLiao']
+            resp_json = self.fetch_basic_information(param)
 
             name = resp_json['SecurityNameA']
             if (security_item.name is None or len(security_item.name) == 0) and len(name) > 0:
@@ -74,14 +73,9 @@ class EastmoneyChinaStockDetailRecorder(Recorder):
             # 关联地区
             security_item.area_indices = resp_json['Provice']
 
-            self.sleep(seconds=0.0)
-
             # 发行相关
             param = {"color": "w", "fc": fc}
-            resp = requests.post('https://emh5.eastmoney.com/api/GongSiGaiKuang/GetFaXingXiangGuan', json=param)
-            resp.encoding = 'utf8'
-
-            resp_json = resp.json()['Result']['FaXingXiangGuan']
+            resp_json = self.fetch_issue_information(param)
 
             listed_date_string = resp_json['ListedDate']
             # 未上市新股为 '--'
@@ -95,15 +89,30 @@ class EastmoneyChinaStockDetailRecorder(Recorder):
             security_item.net_winning_rate = pct_to_float(resp_json['LotRateOn'])
 
             self.session.commit()
-
             self.logger.info('finish recording stock meta for:{}'.format(security_item.code))
 
-            self.sleep(seconds=0.0)
+    @staticmethod
+    @retry(wait_fixed=20, stop_after_attempt=10)
+    def fetch_basic_information(param):
+        resp = requests.post('https://emh5.eastmoney.com/api/GongSiGaiKuang/GetJiBenZiLiao', json=param)
+        resp.encoding = 'utf8'
+        resp_json = resp.json()['Result']['JiBenZiLiao']
+
+        return resp_json
+
+    @staticmethod
+    @retry(wait_fixed=20, stop_after_attempt=10)
+    def fetch_issue_information(param):
+        resp = requests.post('https://emh5.eastmoney.com/api/GongSiGaiKuang/GetFaXingXiangGuan', json=param)
+        resp.encoding = 'utf8'
+        resp_json = resp.json()['Result']['FaXingXiangGuan']
+
+        return resp_json
 
 
 if __name__ == '__main__':
     # init_log('china_stock_meta.log')
-    EastmoneyChinaStockDetailRecorder(code='001216').run()
+    EastmoneyChinaStockDetailRecorder(code='000429').run()
 
 # the __all__ is generated
 __all__ = ['EastmoneyChinaStockDetailRecorder']
