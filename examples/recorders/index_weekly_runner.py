@@ -25,7 +25,7 @@ def run():
     while True:
         try:
             ExchangeIndexRecorder(sleeping_time=0.0).run()
-            ExchangeIndexStockRecorder(sleeping_time=0.0).run()
+            ExchangeIndexStockRecorder(sleeping_time=0.0, record_history=True).run()
             TencenIndexKdataRecorder(sleeping_time=0.0).run()
 
             wework.send_finished_message('股票列表、日线数据')
