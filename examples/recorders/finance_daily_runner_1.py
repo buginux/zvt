@@ -17,7 +17,7 @@ sched = BackgroundScheduler()
 wework = WeWorkInformer()
 
 
-@sched.scheduled_job('cron', hour=22, minute=00)
+@sched.scheduled_job('cron', hour=20, minute=00)
 def run():
     err_count = 0
 
