@@ -30,7 +30,7 @@ def run():
         try:
             EastmoneyChinaStockDetailRecorder(sleeping_time=0.0).run()
             JoudouChinaStockKdataRecorder(sleeping_time=0.0).run()
-            TencenIndexKdataRecorder(codes=['000001']).run()
+            # TencenIndexKdataRecorder(codes=['000001']).run()
 
             wework.send_finished_message('股票列表、日线数据')
             err_count = 0
