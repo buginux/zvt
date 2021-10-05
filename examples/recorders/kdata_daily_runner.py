@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 sched = BackgroundScheduler()
 wework = WeWorkInformer()
 
+
 @sched.scheduled_job('cron', hour=16, minute=30)
 def run():
     err_count = 0
