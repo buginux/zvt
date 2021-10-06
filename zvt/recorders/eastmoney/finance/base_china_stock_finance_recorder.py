@@ -121,7 +121,7 @@ class BaseChinaStockFinanceRecorder(EastmoneyTimestampsDataRecorder):
     def get_original_time_field(self):
         return 'ReportDate'
 
-    @retry(wait=wait_fixed(20), stop=stop_after_attempt(10))
+    # @retry(wait=wait_fixed(20), stop=stop_after_attempt(10))
     def get_report_date(self, security_item):
         notice_date_url = 'http://datacenter.eastmoney.com/api/data/get?type=RPT_LICO_FN_CPD&sty=SECURITY_CODE,SECURITY_NAME_ABBR,TRADE_MARKET_CODE,TRADE_MARKET,SECURITY_TYPE_CODE,SECURITY_TYPE,UPDATE_DATE,REPORTDATE,BASIC_EPS,TOTAL_OPERATE_INCOME,PARENT_NETPROFIT,YSTZ,SJLTZ,NOTICE_DATE,ORG_CODE,TRADE_MARKET_ZJG,ISNEW,QDATE,DATATYPE,DATAYEAR,DATEMMDD&p=1&ps=200&filter=(SECURITY_CODE%3D%22{}%22)&st=REPORTDATE,EITIME&sr=-1,-1&source=DataCenter&client=WEB'
         url = notice_date_url.format(security_item.code)
@@ -191,12 +191,13 @@ class BaseChinaStockFinanceRecorder(EastmoneyTimestampsDataRecorder):
                                                                                    the_data.report_date))
                         self.session.commit()
                     else:
+                        pass
                         # self.logger.info(
                         #     'waiting jq fill {} {} timestamp:{} for report_date:{}'.format(self.data_schema,
                         #                                                                    security_item.id,
                         #                                                                    the_data.timestamp,
                         #                                                                    the_data.report_date))
-                        self.fill_timestamp(entity, the_data_list)
+                        # self.fill_timestamp(entity, the_data_list)
 
 
 # the __all__ is generated
