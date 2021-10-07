@@ -198,6 +198,8 @@ balance_sheet_map = {
     "fi_other_equity_instruments": "Otherequity",
     # 其中:优先股
     "fi_preferred_stock": "Preferredstock",
+    # 其中:永续债
+    "fi_perpetual_bond": "Sustainabledebt",
     # 资本公积
     #
     # 盈余公积
@@ -449,7 +451,7 @@ class ChinaStockBalanceSheetRecorder(BaseChinaStockFinanceRecorder):
 
 if __name__ == '__main__':
     # init_log('blance_sheet.log')
-    recorder = ChinaStockBalanceSheetRecorder(codes=None, sleeping_time=0.0)
+    recorder = ChinaStockBalanceSheetRecorder(codes=['600000'], sleeping_time=0.0)
     recorder.run()
 # the __all__ is generated
 __all__ = ['ChinaStockBalanceSheetRecorder']
