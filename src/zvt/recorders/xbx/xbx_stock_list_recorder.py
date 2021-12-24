@@ -12,7 +12,7 @@ from zvt.domain import Stock, StockDetail
 
 class XbxStockListRecorder(Recorder):
     data_schema = Stock
-    provider = 'em'
+    provider = 'eastmoney'
 
     def run(self):
         stock_directory = os.path.join(ZVT_HOME, 'xbx_stock_day_data_pro/stock')
@@ -21,6 +21,10 @@ class XbxStockListRecorder(Recorder):
 
         stock_info_list = []
         for file in filenames:
+            exchange = file[:2]
+            if exchange == 'bj':
+                continue
+
             stock_info = {
                 'code': file[2:],
                 'exchange': file[:2],

@@ -461,7 +461,7 @@ class BalanceSheet(FinanceBase, Mixin):
 
 
 
-class IncomeStatementCommon(FinanceBase, Mixin):
+class IncomeStatementCommon(Mixin):
     @classmethod
     def important_cols(cls):
         return [

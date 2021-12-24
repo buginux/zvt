@@ -6,9 +6,10 @@ from tenacity import retry, wait_fixed, stop_after_attempt
 
 from zvt.contract.api import get_entities
 from zvt.contract.recorder import Recorder
+from zvt.recorders.exchange.exchange_stock_meta_recorder import ExchangeStockMetaRecorder
 from zvt.recorders.em.meta.em_stock_meta_recorder import EMStockRecorder
 from zvt.recorders.xbx.xbx_stock_list_recorder import XbxStockListRecorder
-from zvt.domain.meta.stock_meta import StockDetail
+from zvt.domain.meta.stock_meta import StockDetail, Stock
 from zvt.utils.time_utils import to_pd_timestamp
 from zvt.utils.utils import to_float, pct_to_float
 
@@ -28,6 +29,9 @@ class EastmoneyStockDetailRecorder(Recorder):
         XbxStockListRecorder().run()
 
         # Get stock list from eastmoney
+        EMStockRecorder().run()
+
+        # Get stock list from exchange
         EastmoneyStockRecorder().run()
 
         if codes is None and code is not None:
@@ -119,8 +123,6 @@ class EastmoneyStockDetailRecorder(Recorder):
 
 if __name__ == "__main__":
     # init_log('china_stock_meta.log')
-    recorder = EastmoneyStockRecorder()
-    recorder.run()
     StockDetail.record_data(codes=['000338', '000777'], provider='eastmoney')
 
 # the __all__ is generated

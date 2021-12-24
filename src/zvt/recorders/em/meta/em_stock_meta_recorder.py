@@ -8,7 +8,7 @@ from zvt.recorders.em import em_api
 
 
 class EMStockRecorder(Recorder):
-    provider = "em"
+    provider = "eastmoney"
     data_schema = Stock
 
     def run(self):
