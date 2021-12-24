@@ -38,7 +38,6 @@ class MarketValueTagger(StockTagger):
             if not pd_is_not_null(df):
                 logger.error(f'no IndexStock data at {timestamp} for {index_id}')
                 continue
-            print(df)
             stock_tags = [self.get_tag_domain(entity_id=stock_id, timestamp=timestamp) for stock_id in
                           df['stock_id'].tolist()]
 
@@ -51,3 +50,5 @@ class MarketValueTagger(StockTagger):
 
 if __name__ == '__main__':
     MarketValueTagger().run()
+# the __all__ is generated
+__all__ = ['MarketValueTag', 'MarketValueTagger']
