@@ -11,6 +11,16 @@ from zvt.utils.pd_utils import pd_is_not_null
 from zvt.utils.time_utils import to_time_str, TIME_FORMAT_DAY, TIME_FORMAT_ISO8601
 
 
+def get_latest_kdata_date(entity_type: str,
+                          level: Union[IntervalLevel, str] = IntervalLevel.LEVEL_1DAY,
+                          adjust_type: Union[AdjustType, str] = None):
+    data_schema: Mixin = get_kdata_schema(entity_type, level=level, adjust_type=adjust_type)
+
+    latest_data = data_schema.query_data(order=data_schema.timestamp.desc(), limit=1,
+                                         return_type='domain')
+    return latest_data[0].timestamp
+
+
 def get_kdata_schema(entity_type: str,
                      level: Union[IntervalLevel, str] = IntervalLevel.LEVEL_1DAY,
                      adjust_type: Union[AdjustType, str] = None) -> Mixin:
@@ -46,6 +56,15 @@ def get_kdata(entity_id=None, entity_ids=None, level=IntervalLevel.LEVEL_1DAY.va
                                   end_timestamp=end_timestamp, filters=filters, session=session, order=order,
                                   limit=limit,
                                   index=index)
+
+
+def default_adjust_type(entity_type: str) -> AdjustType:
+    """
+    :type entity_type: entity type, e.g stock, stockhk, stockus
+    """
+    if entity_type.startswith('stock'):
+        return AdjustType.hfq
+    return AdjustType.qfq
 
 
 def generate_kdata_id(entity_id, timestamp, level):
@@ -109,5 +128,7 @@ def to_high_level_kdata(kdata_df: pd.DataFrame, to_level: IntervalLevel):
     df['name'] = name
 
     return df
+
+
 # the __all__ is generated
 __all__ = ['get_kdata_schema', 'get_kdata', 'generate_kdata_id', 'to_high_level_kdata']
