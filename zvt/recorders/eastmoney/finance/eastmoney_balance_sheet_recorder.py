@@ -116,7 +116,6 @@ balance_sheet_map = {
     "total_equity": "Sumshequity",
     # 负债和股东权益合计
     "total_liabilities_and_equity": "Sumliabshequity",
-
     # 银行相关
     # 资产
     # 现金及存放中央银行款项
@@ -213,7 +212,6 @@ balance_sheet_map = {
     # 股东权益合计
     #
     # 负债及股东权益总计
-
     # 券商相关
     # 资产
     #
@@ -316,7 +314,6 @@ balance_sheet_map = {
     # 股东权益合计
     #
     # 负债和股东权益总计
-
     # 保险相关
     # 应收保费
     "fi_premiums_receivable": "Premiumrec",
@@ -430,7 +427,6 @@ balance_sheet_map = {
     # 股东权益合计
     #
     # 负债和股东权益总计
-
 }
 
 add_func_to_value(balance_sheet_map, first_item_to_float)
@@ -441,17 +437,18 @@ balance_sheet_map["report_date"] = ("ReportDate", to_pd_timestamp)
 class ChinaStockBalanceSheetRecorder(BaseChinaStockFinanceRecorder):
     data_schema = BalanceSheet
 
-    url = 'https://emh5.eastmoney.com/api/CaiWuFenXi/GetZiChanFuZhaiBiaoList'
-    finance_report_type = 'ZiChanFuZhaiBiaoList'
+    url = "https://emh5.eastmoney.com/api/CaiWuFenXi/GetZiChanFuZhaiBiaoList"
+    finance_report_type = "ZiChanFuZhaiBiaoList"
     data_type = 3
 
     def get_data_map(self):
         return balance_sheet_map
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # init_log('blance_sheet.log')
-    recorder = ChinaStockBalanceSheetRecorder(codes=['600000'], sleeping_time=0.0)
+    recorder = ChinaStockBalanceSheetRecorder(codes=["002572"])
     recorder.run()
+    
 # the __all__ is generated
-__all__ = ['ChinaStockBalanceSheetRecorder']
+__all__ = ["ChinaStockBalanceSheetRecorder"]

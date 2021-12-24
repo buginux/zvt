@@ -10,14 +10,14 @@ StockMetaBase = declarative_base()
 
 
 # 个股
-@register_entity(entity_type='stock')
+@register_entity(entity_type="stock")
 class Stock(StockMetaBase, TradableEntity):
-    __tablename__ = 'stock'
+    __tablename__ = "stock"
 
 
 # 个股详情
 class StockDetail(StockMetaBase, TradableEntity):
-    __tablename__ = 'stock_detail'
+    __tablename__ = "stock_detail"
 
     # 所属行业
     industries = Column(String)
@@ -50,5 +50,6 @@ class StockDetail(StockMetaBase, TradableEntity):
 
 register_schema(providers=['joinquant', 'eastmoney', 'exchange', 'sina', 'sw', 'em'], db_name='stock_meta',
                 schema_base=StockMetaBase)
+
 # the __all__ is generated
-__all__ = ['Stock', 'StockDetail']
+__all__ = ["Stock", "StockDetail"]

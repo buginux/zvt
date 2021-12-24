@@ -9,13 +9,19 @@ FinanceBase = declarative_base()
 
 
 class BalanceSheet(FinanceBase, Mixin):
-
     @classmethod
     def important_cols(cls):
-        return ['total_assets', 'total_liabilities', 'equity', 'cash_and_cash_equivalents', 'accounts_receivable',
-                'inventories', 'goodwill']
+        return [
+            "total_assets",
+            "total_liabilities",
+            "equity",
+            "cash_and_cash_equivalents",
+            "accounts_receivable",
+            "inventories",
+            "goodwill",
+        ]
 
-    __tablename__ = 'balance_sheet'
+    __tablename__ = "balance_sheet"
 
     provider = Column(String(length=32))
     code = Column(String(length=32))
@@ -454,12 +460,19 @@ class BalanceSheet(FinanceBase, Mixin):
     # 负债和股东权益总计
 
 
-class IncomeStatementCommon(Mixin):
 
+class IncomeStatementCommon(FinanceBase, Mixin):
     @classmethod
     def important_cols(cls):
-        return ['operating_income', 'investment_income', 'total_operating_costs', 'total_profits', 'sales_costs',
-                'managing_costs', 'financing_costs']
+        return [
+            "operating_income",
+            "investment_income",
+            "total_operating_costs",
+            "total_profits",
+            "sales_costs",
+            "managing_costs",
+            "financing_costs",
+        ]
 
     provider = Column(String(length=32))
     code = Column(String(length=32))
@@ -619,7 +632,7 @@ class IncomeStatementCommon(Mixin):
 class CashFlowStatementCommon(Mixin):
     @classmethod
     def important_cols(cls):
-        return ['net_op_cash_flows', 'net_investing_cash_flows', 'net_financing_cash_flows', 'cash']
+        return ["net_op_cash_flows", "net_investing_cash_flows", "net_financing_cash_flows", "cash"]
 
     provider = Column(String(length=32))
     code = Column(String(length=32))
@@ -817,13 +830,23 @@ class CashFlowStatementCommon(Mixin):
 
 # 主要财务指标
 
+
 class FinanceFactor(FinanceBase, Mixin):
     @classmethod
     def important_cols(cls):
-        return ['basic_eps', 'total_op_income', 'net_profit', 'op_income_growth_yoy', 'net_profit_growth_yoy', 'roe',
-                'rota', 'gross_profit_margin', 'net_margin']
+        return [
+            "basic_eps",
+            "total_op_income",
+            "net_profit",
+            "op_income_growth_yoy",
+            "net_profit_growth_yoy",
+            "roe",
+            "rota",
+            "gross_profit_margin",
+            "net_margin",
+        ]
 
-    __tablename__ = 'finance_factor'
+    __tablename__ = "finance_factor"
 
     provider = Column(String(length=32))
     code = Column(String(length=32))
@@ -963,7 +986,6 @@ class FinanceFactor(FinanceBase, Mixin):
     broker_net_capital_assets_ratio = Column(Float)
     # 自营固定收益类证券规模/净资本
     broker_self_operated_fixed_income_securities_net_capital_ratio = Column(Float)
-
 
 class CashFlowStatement(CashFlowStatementCommon, FinanceBase):
     """现金流量表"""
