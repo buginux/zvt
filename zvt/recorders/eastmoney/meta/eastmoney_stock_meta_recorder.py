@@ -13,8 +13,12 @@ from zvt.utils.time_utils import to_pd_timestamp
 from zvt.utils.utils import to_float, pct_to_float
 
 
-class EastmoneyChinaStockDetailRecorder(Recorder):
-    provider = 'em'
+class EastmoneyStockRecorder(ExchangeStockMetaRecorder):
+    data_schema = Stock
+    provider = 'eastmoney'
+
+class EastmoneyStockDetailRecorder(Recorder):
+    provider = 'eastmoney'
     data_schema = StockDetail
 
     def __init__(self, force_update=False, sleeping_time=0.0, code=None, codes=None) -> None:
@@ -24,7 +28,7 @@ class EastmoneyChinaStockDetailRecorder(Recorder):
         XbxStockListRecorder().run()
 
         # Get stock list from eastmoney
-        EMStockRecorder().run()
+        EastmoneyStockRecorder().run()
 
         if codes is None and code is not None:
             self.codes = [code]
@@ -112,7 +116,9 @@ class EastmoneyChinaStockDetailRecorder(Recorder):
 
 if __name__ == '__main__':
     # init_log('china_stock_meta.log')
-    EastmoneyChinaStockDetailRecorder(code='000429').run()
+    recorder = EastmoneyStockRecorder()
+    recorder.run()
+    StockDetail.record_data(codes=['000338', '000777'], provider='eastmoney')
 
 # the __all__ is generated
-__all__ = ['EastmoneyChinaStockDetailRecorder']
+__all__ = ['EastmoneyStockRecorder', 'EastmoneyStockDetailRecorder']

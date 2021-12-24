@@ -11,6 +11,7 @@ from plotly.subplots import make_subplots
 from zvt.contract.api import decode_entity_id
 from zvt.contract.data_type import Bean
 from zvt.contract.normal_data import NormalData
+from zvt.utils import to_string
 from zvt.utils.pd_utils import pd_is_not_null
 
 logger = logging.getLogger(__name__)
@@ -22,8 +23,10 @@ class ChartType(Enum):
     area = 'area'
     scatter = 'scatter'
     histogram = 'histogram'
+    pie = 'pie'
 
 
+@to_string
 class Rect(Bean):
 
     def __init__(self, x0=None, y0=None, x1=None, y1=None) -> None:
@@ -57,6 +60,10 @@ class Draw(object):
 
     def draw_histogram(self, width=None, height=None, title=None, keep_ui_state=True, show=False, **kwargs):
         return self.draw(ChartType.histogram, width=width, height=height, title=title, keep_ui_state=keep_ui_state,
+                         show=show, **kwargs)
+
+    def draw_pie(self, width=None, height=None, title=None, keep_ui_state=True, show=False, **kwargs):
+        return self.draw(ChartType.pie, width=width, height=height, title=title, keep_ui_state=keep_ui_state,
                          show=show, **kwargs)
 
     def draw(self,
@@ -419,6 +426,10 @@ class Drawer(Draw):
                         self.annotation_df = pd.concat([self.annotation_df, annotation_df])
                     else:
                         self.annotation_df = annotation_df
+            elif main_chart == ChartType.pie:
+                for _, row in df.iterrows():
+                    traces.append(go.Pie(name=entity_id, labels=df.columns.tolist(), values=row.tolist(), **kwargs))
+                    break
             else:
                 assert False
 
