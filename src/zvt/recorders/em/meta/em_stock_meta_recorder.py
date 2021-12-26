@@ -16,8 +16,8 @@ class EMStockRecorder(Recorder):
             df = em_api.get_tradable_list(entity_type="stock", exchange=exchange)
             self.logger.info(df)
 
-            df_to_db(df=df, data_schema=self.data_schema, provider=self.provider, force_update=True)
-            df_to_db(df=df, data_schema=StockDetail, provider=self.provider, force_update=True)
+            df_to_db(df=df, data_schema=self.data_schema, provider=self.provider, force_update=False)
+            df_to_db(df=df, data_schema=StockDetail, provider=self.provider, force_update=False)
 
 
 if __name__ == "__main__":
