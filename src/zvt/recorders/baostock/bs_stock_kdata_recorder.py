@@ -99,6 +99,10 @@ class BSStockKdataRecorder(FixedCycleDataRecorder):
 
         return None
 
+    def on_finish(self):
+        bs.logout()
+        super().on_finish()
+
     def should_reset_qfq(self, ticker, start_date):
         adjust_factor_df = self.query_baostock_adjust_factor(ticker, to_time_str(start_date))
         if pd_is_not_null(adjust_factor_df):
