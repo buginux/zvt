@@ -60,7 +60,16 @@ class EtfKdataCommon(KdataCommon):
 
 
 class StockKdataCommon(KdataCommon):
-    pass
+    # 前收盘价
+    pre_close = Column(Float)
+    # 是否停牌
+    trade_status = Column(String)
+    # 是否 st 股
+    is_st = Column(String)
+    # 涨停价
+    up_limit = Column(Float)
+    # 跌停价
+    down_limit = Column(Float)
 
 
 class StockusKdataCommon(KdataCommon):

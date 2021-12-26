@@ -37,7 +37,7 @@ def get_kdata_schema(
 
     # kdata schema rule
     # name:{entity_type.capitalize()}{IntervalLevel.value.capitalize()}Kdata
-    if adjust_type and (adjust_type != AdjustType.qfq):
+    if adjust_type and (adjust_type != AdjustType.bfq):
         schema_str = "{}{}{}Kdata".format(
             entity_type.capitalize(),
             level.value.capitalize(),

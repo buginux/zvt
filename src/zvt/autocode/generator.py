@@ -193,7 +193,7 @@ def gen_kdata_schema(
             # you should define {EntityType}KdataCommon in kdata_module at first
             kdata_common = f"{cap_entity_type}KdataCommon"
 
-            if adjust_type and (adjust_type != AdjustType.qfq):
+            if adjust_type and (adjust_type != AdjustType.bfq):
                 class_name = f"{cap_entity_type}{cap_level}{adjust_type.value.capitalize()}Kdata"
                 table_name = f"{entity_type}_{level.value}_{adjust_type.value.lower()}_kdata"
 

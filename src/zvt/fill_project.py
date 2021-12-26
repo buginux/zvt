@@ -8,10 +8,10 @@ def gen_kdata_schemas():
     # A股行情
     gen_kdata_schema(
         pkg="zvt",
-        providers=["joinquant", "em"],
+        providers=["joinquant", "em", "baostock"],
         entity_type="stock",
         levels=[level for level in IntervalLevel if level != IntervalLevel.LEVEL_TICK],
-        adjust_types=[None, AdjustType.hfq],
+        adjust_types=[AdjustType.bfq, AdjustType.hfq, AdjustType.qfq],
         entity_in_submodule=True,
     )
 

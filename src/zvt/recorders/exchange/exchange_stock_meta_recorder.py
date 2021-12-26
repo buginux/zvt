@@ -109,9 +109,9 @@ class ExchangeStockMetaRecorder(Recorder):
             df = df.dropna(axis=0, how="any")
             df = df.drop_duplicates(subset=("id"), keep="last")
 
-            df_to_db(df=df, data_schema=self.data_schema, provider=self.provider, force_update=True)
+            df_to_db(df=df, data_schema=self.data_schema, provider=self.provider, force_update=False)
             # persist StockDetail too
-            df_to_db(df=df, data_schema=StockDetail, provider=self.provider, force_update=True)
+            df_to_db(df=df, data_schema=StockDetail, provider=self.provider, force_update=False)
 
             self.logger.info(df.tail())
             self.logger.info("persist stock list successs")
