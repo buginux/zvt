@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
 
+import os
+
 import baostock as bs
 import pandas as pd
-from tenacity import *
 
 from zvt.api.kdata import generate_kdata_id, get_kdata_schema, get_kdata
 from zvt.contract import IntervalLevel, AdjustType
-from zvt.contract.api import df_to_db
+from zvt.contract.api import df_to_db, get_data
 from zvt.contract.recorder import FixedCycleDataRecorder
 from zvt.domain import Stock, StockKdataCommon
 from zvt.utils.pd_utils import pd_is_not_null
@@ -34,6 +35,8 @@ class BSStockKdataRecorder(FixedCycleDataRecorder):
 
     provider = 'baostock'
     data_schema = StockKdataCommon
+
+    rq_bundle_path = os.path.expanduser('~/.rqalpha/bundle')
 
     def __init__(self,
                  codes=None,
@@ -99,6 +102,33 @@ class BSStockKdataRecorder(FixedCycleDataRecorder):
 
         return None
 
+    def on_finish_entity(self, entity):
+        super().on_finish_entity(entity)
+
+        if self.adjust_type != AdjustType.bfq:
+            return
+
+        if self.level < IntervalLevel.LEVEL_1DAY:
+            return
+
+        datas = get_kdata(entity_id=entity.id, provider=self.provider, return_type='domain',
+                start_timestamp=pd.to_datetime('2005-01-01'),
+                level=self.level,
+                adjust_type=self.adjust_type,
+                filters=[self.data_schema.up_limit.is_(None)]
+                )
+
+        if datas:
+            df = self.query_rq_limit_price(entity)
+
+            if pd_is_not_null(df):
+                for data in datas:
+                    if data.timestamp in df.index:
+                        data.up_limit = df.loc[data.timestamp, 'limit_up']
+                        data.down_limit = df.loc[data.timestamp, 'limit_down']
+                    self.session.commit()
+            self.logger.info(f'({entity.code}{entity.name}) 涨跌停价更新完成...')
+
     def on_finish(self):
         bs.logout()
         super().on_finish()
@@ -122,6 +152,17 @@ class BSStockKdataRecorder(FixedCycleDataRecorder):
     def query_baostock_adjust_factor(self, ticker, date):
         return bs.query_adjust_factor(code=ticker, end_date=date)
 
+    def query_rq_limit_price(self, entity):
+        stocks_path = os.path.join(self.rq_bundle_path, 'stocks.h5')
+        rq_symbol = f"{entity.code}.{'XSHG' if entity.exchange == 'sh' else 'XSHE'}"
+        rq_price_df = pd.read_hdf(stocks_path, key=rq_symbol)
+
+        rq_price_df['datetime'] = pd.to_datetime(rq_price_df['datetime'], format='%Y%m%d%H%M%S')
+        rq_price_df.set_index('datetime', inplace=True)
+
+        return rq_price_df
+
+
     @staticmethod
     def to_bs_trading_level(trading_level: IntervalLevel):
         if trading_level == IntervalLevel.LEVEL_1DAY:
@@ -138,7 +179,7 @@ class BSStockKdataRecorder(FixedCycleDataRecorder):
 
 
 if __name__ == '__main__':
-    BSStockKdataRecorder(codes=['000001'], adjust_type=AdjustType.qfq).run()
+    BSStockKdataRecorder(codes=['000001'], adjust_type=AdjustType.bfq).run()
 
 # the __all__ is generated
 __all__ = ['BSStockKdataRecorder']
