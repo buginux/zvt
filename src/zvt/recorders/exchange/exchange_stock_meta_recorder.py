@@ -96,6 +96,7 @@ class ExchangeStockMetaRecorder(Recorder):
                 df.columns = ["code", "name", "list_date"]
 
             df = df.dropna(subset=["code"])
+            df = df[~df['code'].str.startswith('20')]
 
             # handle the dirty data
             df["list_date"] = df["list_date"].apply(lambda x: to_pd_timestamp(x))
