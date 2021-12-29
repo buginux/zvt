@@ -9,7 +9,7 @@ from zvt.api.kdata import generate_kdata_id, get_kdata_schema, get_kdata
 from zvt.contract import IntervalLevel, AdjustType
 from zvt.contract.api import df_to_db, get_data
 from zvt.contract.recorder import FixedCycleDataRecorder
-from zvt.domain import Stock, StockKdataCommon
+from zvt.domain import StockDetail, StockKdataCommon
 from zvt.utils.pd_utils import pd_is_not_null
 from zvt.utils.time_utils import to_time_str, TIME_FORMAT_DAY, TIME_FORMAT_ISO8601
 
@@ -31,7 +31,7 @@ def bs_func_decorator(func):
 
 class BSStockKdataRecorder(FixedCycleDataRecorder):
     entity_provider = 'eastmoney'
-    entity_schema = Stock
+    entity_schema = StockDetail
 
     provider = 'baostock'
     data_schema = StockKdataCommon
@@ -41,12 +41,13 @@ class BSStockKdataRecorder(FixedCycleDataRecorder):
     def __init__(self,
                  codes=None,
                  level=IntervalLevel.LEVEL_1DAY,
-                 adjust_type=AdjustType.bfq):
+                 adjust_type=AdjustType.bfq,
+		 sleeping_time=0.0):
         level = IntervalLevel(level)
         adjust_type = AdjustType(adjust_type)
         self.data_schema = get_kdata_schema(entity_type='stock', level=level, adjust_type=adjust_type)
 
-        super().__init__(codes=codes, level=level)
+        super().__init__(codes=codes, level=level, sleeping_time=sleeping_time)
 
         self.adjust_type = adjust_type
         self.bs_data_fields = 'date,open,high,low,close,preclose,volume,amount,turn,tradestatus,pctChg,isST'
@@ -179,7 +180,7 @@ class BSStockKdataRecorder(FixedCycleDataRecorder):
 
 
 if __name__ == '__main__':
-    BSStockKdataRecorder(codes=['000001'], adjust_type=AdjustType.bfq).run()
+    BSStockKdataRecorder(codes=None, adjust_type=AdjustType.bfq).run()
 
 # the __all__ is generated
 __all__ = ['BSStockKdataRecorder']
