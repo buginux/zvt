@@ -156,7 +156,12 @@ class BSStockKdataRecorder(FixedCycleDataRecorder):
     def query_rq_limit_price(self, entity):
         stocks_path = os.path.join(self.rq_bundle_path, 'stocks.h5')
         rq_symbol = f"{entity.code}.{'XSHG' if entity.exchange == 'sh' else 'XSHE'}"
-        rq_price_df = pd.read_hdf(stocks_path, key=rq_symbol)
+
+        try:
+            rq_price_df = pd.read_hdf(stocks_path, key=rq_symbol)
+        except KeyError as e:
+            self.logger.warning(f'No object named {rq_symbol} in the file')
+            return None
 
         rq_price_df['datetime'] = pd.to_datetime(rq_price_df['datetime'], format='%Y%m%d%H%M%S')
         rq_price_df.set_index('datetime', inplace=True)
