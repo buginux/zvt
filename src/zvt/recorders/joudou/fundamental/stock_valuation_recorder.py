@@ -41,6 +41,8 @@ class JoudouChinaStockValuationRecorder(TimeSeriesDataRecorder):
         response = requests.get(query_url)
 
         data_list = response.json().get('data', [])
+        if len(data_list) == 0:
+            return None
 
         df = pd.DataFrame(data_list)
         df.columns = ['timestamp', 'dividend_rate']
@@ -57,6 +59,9 @@ class JoudouChinaStockValuationRecorder(TimeSeriesDataRecorder):
         response = requests.get(query_url)
 
         data_list = response.json().get('data', {}).get('data', [])
+        if data_list is None:
+            return None
+
         df = pd.DataFrame(data_list)
         df.columns = ['timestamp', 'pe_ttm', 'pcf', 'pb', 'ps']
         df['pe'] = df['pe_ttm']
@@ -68,4 +73,4 @@ class JoudouChinaStockValuationRecorder(TimeSeriesDataRecorder):
 __all__ = ['JoudouChinaStockValuationRecorder']
 
 if __name__ == '__main__':
-    JoudouChinaStockValuationRecorder(codes=None, sleeping_time=0.0, force_update=True).run()
+    JoudouChinaStockValuationRecorder(codes=['000003'], sleeping_time=0.0, force_update=True).run()
