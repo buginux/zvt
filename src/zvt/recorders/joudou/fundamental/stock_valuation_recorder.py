@@ -69,8 +69,7 @@ class JoudouChinaStockValuationRecorder(TimeSeriesDataRecorder):
 
         return df
 
+if __name__ == '__main__':
+    JoudouChinaStockValuationRecorder(codes=None, sleeping_time=0.0, force_update=True).run()
 
 __all__ = ['JoudouChinaStockValuationRecorder']
-
-if __name__ == '__main__':
-    JoudouChinaStockValuationRecorder(codes=['000003'], sleeping_time=0.0, force_update=True).run()

@@ -107,3 +107,8 @@ from .sina import *
 from .sina import __all__ as _sina_all
 
 __all__ += _sina_all
+
+from .joudou import *
+from .joudou import __all__ as _joudou_all
+
+__all__ += _joudou_all
