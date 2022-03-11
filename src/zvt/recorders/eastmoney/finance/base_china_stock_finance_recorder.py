@@ -46,6 +46,7 @@ class BaseChinaStockFinanceRecorder(EastmoneyTimestampsDataRecorder):
     def __init__(
         self,
         exchanges=None,
+        entity_id=None,
         entity_ids=None,
         code=None,
         codes=None,
@@ -61,6 +62,7 @@ class BaseChinaStockFinanceRecorder(EastmoneyTimestampsDataRecorder):
             force_update,
             sleeping_time,
             exchanges,
+            entity_id,
             entity_ids,
             code,
             codes,

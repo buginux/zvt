@@ -9,22 +9,34 @@ ZvtInfoBase = declarative_base()
 
 
 class StateMixin(Mixin):
-    # the unique name of the service, e.g. recorder,factor,tag
+    #: the unique name of the service, e.g. recorder,factor,tag
     state_name = Column(String(length=128))
 
-    # json string
+    #: json string
     state = Column(Text())
 
 
 class RecorderState(ZvtInfoBase, StateMixin):
+    """
+    Schema for storing recorder state
+    """
+
     __tablename__ = "recoder_state"
 
 
 class TaggerState(ZvtInfoBase, StateMixin):
+    """
+    Schema for storing tagger state
+    """
+
     __tablename__ = "tagger_state"
 
 
 class FactorState(ZvtInfoBase, StateMixin):
+    """
+    Schema for storing factor state
+    """
+
     __tablename__ = "factor_state"
 
 

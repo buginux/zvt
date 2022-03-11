@@ -4,36 +4,21 @@
 [![image](https://img.shields.io/pypi/pyversions/zvt.svg)](https://pypi.org/project/zvt/)
 [![build](https://github.com/zvtvz/zvt/actions/workflows/build.yaml/badge.svg)](https://github.com/zvtvz/zvt/actions/workflows/build.yml)
 [![package](https://github.com/zvtvz/zvt/actions/workflows/package.yaml/badge.svg)](https://github.com/zvtvz/zvt/actions/workflows/package.yaml)
+[![Documentation Status](https://readthedocs.org/projects/zvt/badge/?version=latest)](https://zvt.readthedocs.io/en/latest/?badge=latest)
 [![codecov.io](https://codecov.io/github/zvtvz/zvt/coverage.svg?branch=master)](https://codecov.io/github/zvtvz/zvt)
 [![Downloads](https://pepy.tech/badge/zvt/month)](https://pepy.tech/project/zvt)
 
+
 **Read this in other languages: [中文](README-cn.md).**  
 
-## Market model
-ZVT abstracts the market into the following model:
-
-<p align="center"><img src='https://raw.githubusercontent.com/zvtvz/zvt/master/docs/imgs/view.png'/></p>
-
-* TradableEntity 
-
-the tradable entity e.g., stock,future,coin
-
-* ActorEntity 
-
-the actor in market e.g., fund,government,company
-
-* EntityEvent 
-
-the event about them e.g, quotes,finance factor,macro policy
-
-## Quick start
+**Read the docs:[https://zvt.readthedocs.io/en/latest/](https://zvt.readthedocs.io/en/latest/)**
 
 ### Install
 ```
 python3 -m pip install -U zvt
 ```
 
-### UI
+### Main ui
 
 After the installation is complete, enter zvt on the command line
 ```shell
@@ -41,7 +26,7 @@ zvt
 ```
 open [http://127.0.0.1:8050/](http://127.0.0.1:8050/)
 
-> The example shown here relies on the history data, please refer to the following document for data update
+> The example shown here relies on data, factor, trader, please read [docs](https://zvt.readthedocs.io/en/latest/)
 
 <p align="center"><img src='https://raw.githubusercontent.com/zvtvz/zvt/master/docs/imgs/zvt-factor.png'/></p>
 <p align="center"><img src='https://raw.githubusercontent.com/zvtvz/zvt/master/docs/imgs/zvt-trader.png'/></p>
@@ -50,17 +35,30 @@ open [http://127.0.0.1:8050/](http://127.0.0.1:8050/)
 
 > You can write and run the strategy in your favorite ide, and then view its related targets, factor, signal and performance on the UI.
 
-### import
+### Behold, the power of zvt:
 ```
->>> from zvt.domain import *
+>>> from zvt.domain import Stock, Stock1dHfqKdata
+>>> from zvt.ml import MaStockMLMachine
+>>> Stock.record_data(provider="em")
+>>> entity_ids = ["stock_sz_000001", "stock_sz_000338", "stock_sh_601318"]
+>>> Stock1dHfqKdata.record_data(provider="em", entity_ids=entity_ids, sleeping_time=1)
+>>> machine = MaStockMLMachine(entity_ids=["stock_sz_000001"])
+>>> machine.train()
+>>> machine.predict()
+>>> machine.draw_result(entity_id="stock_sz_000001")
 ```
+<p align="center"><img src='https://raw.githubusercontent.com/zvtvz/zvt/master/docs/imgs/pred_close.png'/></p>
 
-### TradableEntity
+> The few lines of code above has done: data capture, persistence, incremental update, machine learning, prediction, and display results.
+> Once you are familiar with the core concepts of the system, you can apply it to any target in the market.
+
+### Data
 
 #### China stock
 ```
->>> Stock.record_data()
->>> df = Stock.query_data(index='code')
+>>> from zvt.domain import *
+>>> Stock.record_data(provider="em")
+>>> df = Stock.query_data(provider="em", index='code')
 >>> print(df)
 
                      id        entity_id  timestamp entity_type exchange    code   name  list_date end_date
@@ -349,7 +347,7 @@ Learn more about record_data
 * Recording the whole market if not set code, codes
 * This method will store the data locally and only do incremental updates
 
-Refer to the scheduling recoding way[eastmoney runner](https://github.com/zvtvz/zvt/blob/master/examples/recorders/eastmoney_data_runner1.py)
+Refer to the scheduling recoding way[data runner](https://github.com/zvtvz/zvt/blob/master/examples/data_runner)
 
 #### Market-wide stock selection
 
