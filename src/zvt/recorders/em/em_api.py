@@ -3,12 +3,14 @@ import logging
 import random
 from typing import Union
 
+import demjson3
 import pandas as pd
 import requests
 
 from zvt.api import generate_kdata_id, value_to_pct
 from zvt.contract import ActorType, AdjustType, IntervalLevel, Exchange, TradableType, get_entity_exchanges
 from zvt.contract.api import decode_entity_id
+from zvt.domain import BlockCategory
 from zvt.recorders.consts import DEFAULT_HEADER
 from zvt.utils import to_pd_timestamp, to_float, json_callback_param, now_timestamp
 
@@ -285,6 +287,7 @@ def get_tradable_list(
     exchange: Union[Exchange, str] = None,
     limit: int = 10000,
     hk_south=False,
+    block_category=BlockCategory.concept,
 ):
     entity_type = TradableType(entity_type)
     exchanges = get_entity_exchanges(entity_type=entity_type)
@@ -297,10 +300,12 @@ def get_tradable_list(
     for exchange in exchanges:
         exchange = Exchange(exchange)
         ex_flag = to_em_entity_flag(exchange=exchange)
-        entity_flag = f"fs = m:{ex_flag}"
+        entity_flag = f"fs=m:{ex_flag}"
 
+        if entity_type == TradableType.indexus:
+            entity_flag = "fs=i:100.NDX,i:100.DJIA,i:100.SPX"
         # m为交易所代码，t为交易类型
-        if entity_type in [TradableType.stock, TradableType.stockus, TradableType.stockhk]:
+        elif entity_type in [TradableType.block, TradableType.stock, TradableType.stockus, TradableType.stockhk]:
             if exchange == Exchange.sh:
                 # t=2 主板
                 # t=23 科创板
@@ -325,6 +330,14 @@ def get_tradable_list(
                 # t=1
                 # t=3 中概股
                 entity_flag = f"fs=m:106+t:1,m:105+t:3"
+            if exchange == Exchange.cn:
+                if block_category == BlockCategory.industry:
+                    entity_flag = entity_flag + "+t:2"
+                elif block_category == BlockCategory.concept:
+                    entity_flag = entity_flag + "+t:3"
+                else:
+                    assert False
+
         url = f"https://push2.eastmoney.com/api/qt/clist/get?np=1&fltt=2&invt=2&fields=f1,f2,f3,f4,f12,f13,f14&pn=1&pz={limit}&fid=f3&po=1&{entity_flag}&ut=f057cbcbce2a86e2866ab8877db1d059&forcect=1&cb=cbCallbackMore&&callback=jQuery34109676853980006124_{now_timestamp() - 1}&_={now_timestamp()}"
         resp = requests.get(url, headers=DEFAULT_HEADER)
 
@@ -339,10 +352,47 @@ def get_tradable_list(
         df["entity_type"] = entity_type.value
         df["id"] = df[["entity_type", "exchange", "code"]].apply(lambda x: "_".join(x.astype(str)), axis=1)
         df["entity_id"] = df["id"]
+        if entity_type == TradableType.block:
+            df["category"] = block_category.value
 
         dfs.append(df)
 
     return pd.concat(dfs)
+
+
+def get_news(entity_id, ps=200, index=1):
+    sec_id = to_em_sec_id(entity_id=entity_id)
+    url = f"https://np-listapi.eastmoney.com/comm/wap/getListInfo?cb=callback&client=wap&type=1&mTypeAndCode={sec_id}&pageSize={ps}&pageIndex={index}&callback=jQuery1830017478247906740352_{now_timestamp() - 1}&_={now_timestamp()}"
+    resp = requests.get(url)
+    # {
+    #     "Art_ShowTime": "2022-02-11 14:29:25",
+    #     "Art_Image": "",
+    #     "Art_MediaName": "每日经济新闻",
+    #     "Art_Code": "202202112274017262",
+    #     "Art_Title": "潍柴动力：巴拉德和锡里斯不纳入合并财务报表范围",
+    #     "Art_SortStart": "1644560965017262",
+    #     "Art_VideoCount": 0,
+    #     "Art_OriginUrl": "http://finance.eastmoney.com/news/1354,202202112274017262.html",
+    #     "Art_Url": "http://finance.eastmoney.com/a/202202112274017262.html",
+    # }
+    if resp.status_code == 200:
+        json_text = resp.text[resp.text.index("(") + 1 : resp.text.rindex(")")]
+        json_result = demjson3.decode(json_text)["data"]["list"]
+        if json_result:
+            json_result = [
+                {
+                    "id": f'{entity_id}_{item["Art_ShowTime"]}',
+                    "entity_id": entity_id,
+                    "timestamp": to_pd_timestamp(item["Art_ShowTime"]),
+                    "news_title": item["Art_Title"],
+                }
+                for item in json_result
+            ]
+            next_data = get_news(entity_id=entity_id, ps=ps, index=index + 1)
+            if next_data:
+                return json_result + next_data
+            else:
+                return json_result
 
 
 # utils to transform zvt entity to em entity
@@ -377,6 +427,8 @@ exchange_map_em_flag = {
     Exchange.hk: 116,
     # 中国行业/概念板块
     Exchange.cn: 90,
+    # 美国指数
+    Exchange.us: 100,
 }
 
 
@@ -397,11 +449,19 @@ def to_em_fq_flag(adjust_type: AdjustType):
 
 def to_em_level_flag(level: IntervalLevel):
     level = IntervalLevel(level)
-    if level == IntervalLevel.LEVEL_1DAY:
+    if level == IntervalLevel.LEVEL_5MIN:
+        return 5
+    if level == IntervalLevel.LEVEL_15MIN:
+        return 15
+    elif level == IntervalLevel.LEVEL_30MIN:
+        return 30
+    elif level == IntervalLevel.LEVEL_1HOUR:
+        return 60
+    elif level == IntervalLevel.LEVEL_1DAY:
         return 101
-    if level == IntervalLevel.LEVEL_1WEEK:
+    elif level == IntervalLevel.LEVEL_1WEEK:
         return 102
-    if level == IntervalLevel.LEVEL_1MON:
+    elif level == IntervalLevel.LEVEL_1MON:
         return 103
 
     assert False
@@ -421,8 +481,14 @@ if __name__ == "__main__":
     #                      org_type=actor_type_to_org_type(ActorType.corporation)))
     # pprint(get_ii_summary(code='000338', report_date='2021-03-31',
     #                       org_type=actor_type_to_org_type(ActorType.corporation)))
-    # df = get_kdata(entity_id='stock_sz_000338')
-    df = get_tradable_list(entity_type="stockhk")
+    # df = get_kdata(entity_id="index_sz_399370", level="1wk")
+    # df = get_tradable_list(entity_type="stockhk")
+    # df = get_news("stock_sz_300999")
+    # print(df)
+    # print(len(df))
+    # df = get_tradable_list(entity_type="block")
+    # df = get_tradable_list(entity_type="indexus")
+    df = get_kdata(entity_id="index_us_SPX", level="1d")
     print(df)
 # the __all__ is generated
 __all__ = [
@@ -441,6 +507,7 @@ __all__ = [
     "get_kdata",
     "get_basic_info",
     "get_tradable_list",
+    "get_news",
     "to_em_fc",
     "to_em_entity_flag",
     "to_em_fq_flag",

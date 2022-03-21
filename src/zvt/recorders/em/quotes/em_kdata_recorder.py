@@ -13,6 +13,8 @@ from zvt.domain import (
     StockhkKdataCommon,
     StockusKdataCommon,
     BlockKdataCommon,
+    Indexus,
+    IndexusKdataCommon,
 )
 from zvt.domain.meta.stockhk_meta import Stockhk
 from zvt.domain.meta.stockus_meta import Stockus
@@ -31,6 +33,7 @@ class BaseEMStockKdataRecorder(FixedCycleDataRecorder):
         force_update=True,
         sleeping_time=10,
         exchanges=None,
+        entity_id=None,
         entity_ids=None,
         code=None,
         codes=None,
@@ -56,6 +59,7 @@ class BaseEMStockKdataRecorder(FixedCycleDataRecorder):
             force_update,
             sleeping_time,
             exchanges,
+            entity_id,
             entity_ids,
             code,
             codes,
@@ -72,7 +76,7 @@ class BaseEMStockKdataRecorder(FixedCycleDataRecorder):
         )
 
     def record(self, entity, start, end, size, timestamps):
-        df = get_kdata(entity_id=entity.id, limit=size, adjust_type=self.adjust_type)
+        df = get_kdata(entity_id=entity.id, limit=size, adjust_type=self.adjust_type, level=self.level)
         if pd_is_not_null(df):
             df_to_db(df=df, data_schema=self.data_schema, provider=self.provider, force_update=self.force_update)
         else:
@@ -126,15 +130,22 @@ class EMIndexKdataRecorder(BaseEMStockKdataRecorder):
     data_schema = IndexKdataCommon
 
 
+class EMIndexusKdataRecorder(BaseEMStockKdataRecorder):
+    entity_provider = "em"
+    entity_schema = Indexus
+
+    data_schema = IndexusKdataCommon
+
+
 class EMBlockKdataRecorder(BaseEMStockKdataRecorder):
-    entity_provider = "eastmoney"
+    entity_provider = "em"
     entity_schema = Block
 
     data_schema = BlockKdataCommon
 
 
 if __name__ == "__main__":
-    recorder = EMBlockKdataRecorder(level=IntervalLevel.LEVEL_1DAY, codes=["000300"])
+    recorder = EMIndexusKdataRecorder(level=IntervalLevel.LEVEL_1DAY, codes=["DJIA", "SPX", "NDX"])
     recorder.run()
 # the __all__ is generated
 __all__ = [
@@ -143,5 +154,6 @@ __all__ = [
     "EMStockusKdataRecorder",
     "EMStockhkKdataRecorder",
     "EMIndexKdataRecorder",
+    "EMIndexusKdataRecorder",
     "EMBlockKdataRecorder",
 ]

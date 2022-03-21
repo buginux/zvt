@@ -4,10 +4,13 @@
 [![image](https://img.shields.io/pypi/pyversions/zvt.svg)](https://pypi.org/project/zvt/)
 [![build](https://github.com/zvtvz/zvt/actions/workflows/build.yaml/badge.svg)](https://github.com/zvtvz/zvt/actions/workflows/build.yml)
 [![package](https://github.com/zvtvz/zvt/actions/workflows/package.yaml/badge.svg)](https://github.com/zvtvz/zvt/actions/workflows/package.yaml)
+[![Documentation Status](https://readthedocs.org/projects/zvt/badge/?version=latest)](https://zvt.readthedocs.io/en/latest/?badge=latest)
 [![codecov.io](https://codecov.io/github/zvtvz/zvt/coverage.svg?branch=master)](https://codecov.io/github/zvtvz/zvt)
 [![Downloads](https://pepy.tech/badge/zvt/month)](https://pepy.tech/project/zvt)
 
 **Read this in other languages: [English](README-cn.md).**  
+
+**详细文档:[https://zvt.readthedocs.io/en/latest/](https://zvt.readthedocs.io/en/latest/)**
 
 ## 市场模型
 ZVT 将市场抽象为如下的模型:
@@ -25,8 +28,9 @@ ZVT 将市场抽象为如下的模型:
 python3 -m pip install -U zvt
 ```
 
-### 运行界面
+### 使用展示
 
+#### 主界面
 安装完成后，在命令行下输入 zvt
 ```shell
 zvt
@@ -42,7 +46,24 @@ zvt
 
 > 你可以在你喜欢的ide里编写和运行策略，然后运行界面查看其相关的标的，因子，信号和净值展示。
 
-### 导入
+#### 见证奇迹的时刻
+```
+>>> from zvt.domain import Stock, Stock1dHfqKdata
+>>> from zvt.ml import MaStockMLMachine
+>>> Stock.record_data(provider="em")
+>>> entity_ids = ["stock_sz_000001", "stock_sz_000338", "stock_sh_601318"]
+>>> Stock1dHfqKdata.record_data(provider="em", entity_ids=entity_ids, sleeping_time=1)
+>>> machine = MaStockMLMachine(entity_ids=["stock_sz_000001"])
+>>> machine.train()
+>>> machine.predict()
+>>> machine.draw_result(entity_id="stock_sz_000001")
+```
+<p align="center"><img src='https://raw.githubusercontent.com/zvtvz/zvt/master/docs/imgs/pred_close.png'/></p>
+
+> 以上几行代码实现了：数据的抓取，持久化，增量更新，机器学习，预测，展示结果。
+> 熟悉系统的核心概念后，可以应用到市场中的任何标的。
+
+### 核心概念
 ```
 >>> from zvt.domain import *
 ```
@@ -339,7 +360,7 @@ Block registered recorders:{'eastmoney': <class 'zvt.recorders.eastmoney.meta.ch
 * 不传入code,codes则是全市场抓取
 * 该方法会把数据存储到本地并只做增量更新
 
-定时任务的方式更新可参考[东财数据定时更新](https://github.com/zvtvz/zvt/blob/master/examples/recorders/eastmoney_data_runner1.py)
+定时任务的方式更新可参考[定时更新](https://github.com/zvtvz/zvt/blob/master/examples/data_runner)
 
 #### 全市场选股
 查询数据使用的是query_data方法，把全市场的数据记录下来后，就可以在本地快速查询需要的数据了。

@@ -18,16 +18,23 @@ logger = logging.getLogger(__name__)
 
 
 class ChartType(Enum):
+    """
+    Chart type enum
+    """
+
+    #: candlestick chart
     kline = "kline"
-    # scatter mode
+    #: line chart
     line = "line"
+    #: area chart
     area = "area"
+    #: scatter chart
     scatter = "scatter"
-    # distribute
+    #: histogram chart
     histogram = "histogram"
-    # composite
+    #: pie chart
     pie = "pie"
-    # compare
+    #: bar chart
     bar = "bar"
 
 
@@ -36,12 +43,18 @@ _zvt_chart_type_map_scatter_mode = {ChartType.line: "lines", ChartType.area: "no
 
 @to_string
 class Rect(Bean):
+    """
+    rect struct with left-bottom(x0, y0), right-top(x1, y1)
+    """
+
     def __init__(self, x0=None, y0=None, x1=None, y1=None) -> None:
-        # left-bottom
+        #: left-bottom x0
         self.x0 = x0
+        #: left-bottom y0
         self.y0 = y0
-        # right-top
+        #: right-top x1
         self.x1 = x1
+        #: right-top y1
         self.y1 = y1
 
 
@@ -373,36 +386,36 @@ class Drawer(Draw):
         :param annotation_df:
         """
 
-        # 主图数据
+        #: 主图数据
         if main_data is None:
             main_data = NormalData(main_df)
         self.main_data: NormalData = main_data
 
-        # 主图因子
+        #: 主图因子
         if not factor_data_list and factor_df_list:
             factor_data_list = []
             for df in factor_df_list:
                 factor_data_list.append(NormalData(df))
-        # 每一个df可能有多个column, 代表多个指标，对于连续型的，可以放在一个df里面
-        # 对于离散型的，比如一些特定模式的连线，放在多个df里面较好，因为index不同
+        #: 每一个df可能有多个column, 代表多个指标，对于连续型的，可以放在一个df里面
+        #: 对于离散型的，比如一些特定模式的连线，放在多个df里面较好，因为index不同
         self.factor_data_list: List[NormalData] = factor_data_list
 
-        # 副图数据
+        #: 副图数据
         if not sub_data_list and sub_df_list:
             sub_data_list = []
             for df in sub_df_list:
                 sub_data_list.append(NormalData(df))
-        # 每一个df可能有多个column, 代表多个指标，对于连续型的，可以放在一个df里面
-        # 对于离散型的，比如一些特定模式的连线，放在多个df里面较好，因为index不同
+        #: 每一个df可能有多个column, 代表多个指标，对于连续型的，可以放在一个df里面
+        #: 对于离散型的，比如一些特定模式的连线，放在多个df里面较好，因为index不同
         self.sub_data_list: List[NormalData] = sub_data_list
 
-        # 幅图col对应的图形，line or bar
+        #: 幅图col对应的图形，line or bar
         self.sub_col_chart = sub_col_chart
 
-        # 主图的标记数据
+        #: 主图的标记数据
         self.annotation_df = annotation_df
 
-        # list of rect
+        #: list of rect
         self.rects = rects
 
     def add_factor_df(self, df: pd.DataFrame):
@@ -622,14 +635,14 @@ class Drawer(Draw):
 
 def annotations(annotation_df: pd.DataFrame, yref="y"):
     """
-    annotation_df format:
-                                    value    flag    color
-    entity_id    timestamp
+    annotation_df format::
+
+                                        value    flag    color
+        entity_id    timestamp
 
     :param annotation_df:
     :param yref: specific yaxis e.g, y,y2,y3
     :return:
-
     """
 
     if pd_is_not_null(annotation_df):
@@ -668,18 +681,5 @@ def annotations(annotation_df: pd.DataFrame, yref="y"):
     return None
 
 
-if __name__ == "__main__":
-    from zvt.factors.z import ZFactor
-
-    data_reader1 = ZFactor(codes=["000338"], level="1d")
-    data_reader2 = ZFactor(codes=["000338"], level="1wk")
-    print(data_reader2.data_df)
-
-    stacked = StackedDrawer(data_reader1.drawer(), data_reader2.drawer()).draw_kline(show=True)
-    # df = Stock1dHfqKdata.query_data(code='000338', start_timestamp='2015-01-01')
-    # sub_df = FinanceFactor.query_data(code='000338', start_timestamp='2015-01-01',
-    #                                   columns=[FinanceFactor.roe, FinanceFactor.entity_id, FinanceFactor.timestamp])
-    #
-    # Drawer(main_df=df, sub_df_list=[sub_df]).draw_kline(show=True)
 # the __all__ is generated
 __all__ = ["ChartType", "Rect", "Draw", "Drawable", "StackedDrawer", "Drawer", "annotations"]

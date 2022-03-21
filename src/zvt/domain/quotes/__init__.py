@@ -52,6 +52,10 @@ class IndexKdataCommon(KdataCommon):
     pass
 
 
+class IndexusKdataCommon(KdataCommon):
+    pass
+
+
 class EtfKdataCommon(KdataCommon):
     turnover_rate = Column(Float)
 
@@ -86,6 +90,7 @@ __all__ = [
     "TickCommon",
     "BlockKdataCommon",
     "IndexKdataCommon",
+    "IndexusKdataCommon",
     "EtfKdataCommon",
     "StockKdataCommon",
     "StockusKdataCommon",
@@ -101,6 +106,12 @@ from .trade_day import *
 from .trade_day import __all__ as _trade_day_all
 
 __all__ += _trade_day_all
+
+# import all from submodule indexus
+from .indexus import *
+from .indexus import __all__ as _indexus_all
+
+__all__ += _indexus_all
 
 # import all from submodule stockhk
 from .stockhk import *

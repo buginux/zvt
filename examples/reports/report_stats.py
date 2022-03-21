@@ -11,13 +11,13 @@ logger = logging.getLogger(__name__)
 sched = BackgroundScheduler()
 
 
-@sched.scheduled_job("cron", hour=19, minute=30, day_of_week="mon-fri")
+@sched.scheduled_job("cron", hour=17, minute=30, day_of_week="mon-fri")
 def report_stats():
     report_top_stats(
         entity_type="stock",
         entity_provider="em",
         data_provider="em",
-        periods=[7, 30, 180, 365],
+        periods=[7, 30, 365],
         ignore_new_stock=True,
         adjust_type=None,
         top_count=30,
@@ -30,7 +30,7 @@ def report_stats():
         entity_provider="em",
         data_provider="em",
         top_count=30,
-        periods=[7, 30, 180, 365],
+        periods=[7, 30, 365],
         ignore_new_stock=True,
         adjust_type=None,
         turnover_threshold=100000000,

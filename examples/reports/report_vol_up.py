@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 sched = BackgroundScheduler()
 
 
-@sched.scheduled_job("cron", hour=18, minute=0, day_of_week="mon-fri")
+@sched.scheduled_job("cron", hour=17, minute=0, day_of_week="mon-fri")
 def report_vol_up():
     report_targets(
         factor_cls=VolumeUpMaFactor,
@@ -36,7 +36,7 @@ def report_vol_up():
 
     report_targets(
         factor_cls=VolumeUpMaFactor,
-        entity_provider="eastmoney",
+        entity_provider="em",
         data_provider="em",
         em_group="强势板块",
         title="放量突破(半)年线板块",

@@ -9,7 +9,7 @@ import pandas as pd
 from zvt.contract import IntervalLevel
 from zvt.contract import zvt_context
 from zvt.contract.api import get_data, df_to_db, del_data
-from zvt.contract.base import EntityStateService
+from zvt.contract.base_service import EntityStateService
 from zvt.contract.reader import DataReader, DataListener
 from zvt.contract.schema import Mixin, TradableEntity
 from zvt.contract.zvt_info import FactorState
@@ -29,12 +29,12 @@ class Transformer(Indicator):
 
     def transform(self, input_df: pd.DataFrame) -> pd.DataFrame:
         """
-        input_df format:
+        input_df format::
 
-                                  col1    col2    col3    ...
-        entity_id    timestamp
-                                  1.2     0.5     0.3     ...
-                                  1.0     0.7     0.2     ...
+                                      col1    col2    col3    ...
+            entity_id    timestamp
+                                      1.2     0.5     0.3     ...
+                                      1.0     0.7     0.2     ...
 
         the return result would change the columns and  keep the format
 
@@ -55,12 +55,12 @@ class Transformer(Indicator):
 
     def transform_one(self, entity_id: str, df: pd.DataFrame) -> pd.DataFrame:
         """
-        df format:
+        df format::
 
-                     col1    col2    col3    ...
-        timestamp
-                     1.2     0.5     0.3     ...
-                     1.0     0.7     0.2     ...
+                         col1    col2    col3    ...
+            timestamp
+                         1.2     0.5     0.3     ...
+                         1.0     0.7     0.2     ...
 
         the return result would change the columns and  keep the format
 
@@ -134,12 +134,12 @@ class Accumulator(Indicator):
 
     def acc_one(self, entity_id, df: pd.DataFrame, acc_df: pd.DataFrame, state: dict) -> (pd.DataFrame, dict):
         """
-        df format:
+        df format::
 
-                     col1    col2    col3    ...
-        timestamp
-                     1.2     0.5     0.3     ...
-                     1.0     0.7     0.2     ...
+                         col1    col2    col3    ...
+            timestamp
+                         1.2     0.5     0.3     ...
+                         1.0     0.7     0.2     ...
 
         the new result and state
 
@@ -178,11 +178,14 @@ class FactorMeta(type):
 
 
 class Factor(DataReader, EntityStateService, DataListener):
+    #: Schema for storing states
     state_schema = FactorState
-    # define the schema for persist,its columns should be same as indicators in transformer or accumulator
+    #: define the schema for persist,its columns should be same as indicators in transformer or accumulator
     factor_schema: Type[Mixin] = None
 
+    #: transformer for this factor if not passed as __init__ argument
     transformer: Transformer = None
+    #: accumulator for this factor if not passed as __init__ argument
     accumulator: Accumulator = None
 
     def __init__(
@@ -229,8 +232,8 @@ class Factor(DataReader, EntityStateService, DataListener):
         """
         self.only_load_factor = only_load_factor
 
-        # define unique name of your factor if you want to keep factor state
-        # the factor state is defined by factor_name and entity_id
+        #: define unique name of your factor if you want to keep factor state
+        #: the factor state is defined by factor_name and entity_id
         if not factor_name:
             self.name = to_snake_str(type(self).__name__)
         else:
@@ -278,16 +281,16 @@ class Factor(DataReader, EntityStateService, DataListener):
         self.need_persist = need_persist
         self.dry_run = only_compute_factor
 
-        # 中间结果，不持久化
-        # data_df->pipe_df
+        #: 中间结果，不持久化
+        #: data_df->pipe_df
         self.pipe_df: pd.DataFrame = None
 
-        # 计算因子的结果，可持久化,通过对pipe_df的计算得到
-        # pipe_df->factor_df
+        #: 计算因子的结果，可持久化,通过对pipe_df的计算得到
+        #: pipe_df->factor_df
         self.factor_df: pd.DataFrame = None
 
-        # result_df是用于选股的标准df,通过对factor_df的计算得到
-        # factor_df->result_df
+        #: result_df是用于选股的标准df,通过对factor_df的计算得到
+        #: factor_df->result_df
         self.result_df: pd.DataFrame = None
 
         if self.clear_state:
@@ -295,9 +298,9 @@ class Factor(DataReader, EntityStateService, DataListener):
         elif self.need_persist or self.only_load_factor:
             self.load_factor()
 
-            # 根据已经计算的factor_df和computing_window来保留data_df
-            # 因为读取data_df的目的是为了计算factor_df,选股和回测只依赖factor_df
-            # 所以如果有持久化的factor_df,只需保留需要用于计算的data_df即可
+            #: 根据已经计算的factor_df和computing_window来保留data_df
+            #: 因为读取data_df的目的是为了计算factor_df,选股和回测只依赖factor_df
+            #: 所以如果有持久化的factor_df,只需保留需要用于计算的data_df即可
             if pd_is_not_null(self.data_df) and self.computing_window:
                 dfs = []
                 for entity_id, df in self.data_df.groupby(level=0):
@@ -320,8 +323,8 @@ class Factor(DataReader, EntityStateService, DataListener):
 
         self.register_data_listener(self)
 
-        # the compute logic is not triggered from load data
-        # for the case:1)load factor from db 2)compute the result
+        #: the compute logic is not triggered from load data
+        #: for the case:1)load factor from db 2)compute the result
         if self.only_load_factor:
             self.compute()
 
@@ -332,7 +335,7 @@ class Factor(DataReader, EntityStateService, DataListener):
 
     def load_factor(self):
         if self.dry_run:
-            # 如果只是为了计算因子，只需要读取acc_window的factor_df
+            #: 如果只是为了计算因子，只需要读取acc_window的factor_df
             if self.accumulator is not None:
                 self.factor_df = self.load_window_df(
                     provider="zvt", data_schema=self.factor_schema, window=self.accumulator.acc_window
@@ -385,13 +388,13 @@ class Factor(DataReader, EntityStateService, DataListener):
     def compute_factor(self):
         if self.only_load_factor:
             return
-        # 无状态的转换运算
+        #: 无状态的转换运算
         if pd_is_not_null(self.data_df) and self.transformer:
             self.pipe_df = self.transformer.transform(self.data_df)
         else:
             self.pipe_df = self.data_df
 
-        # 有状态的累加运算
+        #: 有状态的累加运算
         if pd_is_not_null(self.pipe_df) and self.accumulator:
             self.factor_df, self.states = self.accumulator.acc(self.pipe_df, self.factor_df, self.states)
         else:
@@ -483,7 +486,7 @@ class Factor(DataReader, EntityStateService, DataListener):
             return annotation_df
 
     def fill_gap(self):
-        # 该操作较慢，只适合做基本面的运算
+        #: 该操作较慢，只适合做基本面的运算
         idx = pd.date_range(self.start_timestamp, self.end_timestamp)
         new_index = pd.MultiIndex.from_product(
             [self.result_df.index.levels[0], idx], names=[self.category_field, self.time_field]
@@ -499,9 +502,7 @@ class Factor(DataReader, EntityStateService, DataListener):
         """
         overwrite it for computing after data added
 
-        Parameters
-        ----------
-        data :
+        :param data:
         """
         self.compute()
 
@@ -509,16 +510,14 @@ class Factor(DataReader, EntityStateService, DataListener):
         """
         overwrite it for computing after entity data added
 
-        Parameters
-        ----------
-        entity :
-        added_data :
+        :param entity:
+        :param added_data:
         """
         pass
 
     def persist_factor(self):
         df = self.factor_df.copy()
-        # encode json columns
+        #: encode json columns
         if pd_is_not_null(df) and self.factor_col_map_object_hook():
             for col in self.factor_col_map_object_hook():
                 if col in df.columns:
@@ -538,7 +537,7 @@ class Factor(DataReader, EntityStateService, DataListener):
                 except Exception as e:
                     self.logger.error(f"{self.name} {entity_id} save state error")
                     self.logger.exception(e)
-                    # clear them if error happen
+                    #: clear them if error happen
                     self.clear_state_data(entity_id)
         else:
             df_to_db(df=df, data_schema=self.factor_schema, provider="zvt", force_update=False)
