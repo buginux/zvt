@@ -21,3 +21,5 @@ Data
     data_concepts
     record_and_query
     extending_data
+    adding_new_entity
+    trading_anything

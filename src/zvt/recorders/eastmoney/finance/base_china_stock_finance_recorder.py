@@ -3,6 +3,8 @@ import pandas as pd
 import requests
 from tenacity import retry, wait_fixed, stop_after_attempt
 
+from jqdatapy.api import get_fundamentals, get_query_count
+
 from zvt.api.utils import to_report_period_type
 from zvt.contract.api import get_data
 from zvt.domain import FinanceFactor, ReportPeriod
@@ -74,6 +76,7 @@ class BaseChinaStockFinanceRecorder(EastmoneyTimestampsDataRecorder):
         )
 
         try:
+            self.logger.info(f"joinquant query count:{get_query_count()}")
             self.fetch_jq_timestamp = True
         except Exception as e:
             self.fetch_jq_timestamp = False
@@ -181,7 +184,7 @@ class BaseChinaStockFinanceRecorder(EastmoneyTimestampsDataRecorder):
                 self.logger.info('fill {} {} report notice date'.format(self.data_schema, security_item.id))
                 self.session.commit()
         except Exception as e:
-            self.logger.error(e)
+            self.logger.error(f"Failed to fill timestamp(publish date) for finance data from joinquant {e}")
 
     def on_finish_entity(self, entity):
         super().on_finish_entity(entity)
