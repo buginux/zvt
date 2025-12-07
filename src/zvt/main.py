@@ -1,8 +1,7 @@
 import dash_bootstrap_components as dbc
-import dash_html_components as html
+from dash import html
 from dash.dependencies import Input, Output
 
-from zvt import init_plugins
 from zvt.ui import zvt_app
 from zvt.ui.apps import factor_app
 
@@ -16,7 +15,6 @@ def serve_layout():
                 dbc.Tabs(
                     [dbc.Tab(label="factor", tab_id="tab-factor", label_style={}, tab_style={"width": "100px"})],
                     id="card-tabs",
-                    card=True,
                     active_tab="tab-factor",
                 )
             ),
@@ -37,8 +35,8 @@ zvt_app.layout = serve_layout
 
 
 def main():
-    init_plugins()
-    zvt_app.run_server(debug=True)
+    # init_plugins()
+    zvt_app.run_server(debug=True, host="0.0.0.0")
     # zvt_app.run_server()
 
 

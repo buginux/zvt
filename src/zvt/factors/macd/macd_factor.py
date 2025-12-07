@@ -28,7 +28,7 @@ class BullFactor(MacdFactor):
 
 
 class KeepBullFactor(BullFactor):
-    keep_window = 20
+    keep_window = 10
 
     def compute_result(self):
         super().compute_result()
@@ -58,6 +58,11 @@ class GoldCrossFactor(MacdFactor):
         super().compute_result()
         s = self.factor_df["live"] == 1
         self.result_df = s.to_frame(name="filter_result")
+
+
+if __name__ == "__main__":
+    f = GoldCrossFactor(provider="em", entity_provider="em", entity_ids=["stock_sz_000338"])
+    f.drawer().draw(show=True)
 
 
 # the __all__ is generated

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from sqlalchemy import String, Column, Float
+from sqlalchemy import String, Column, Float, Integer, JSON, Boolean
 
 from zvt.contract import Mixin
 
@@ -31,17 +31,30 @@ class KdataCommon(Mixin):
 
 
 class TickCommon(Mixin):
-    provider = Column(String(length=32))
-    code = Column(String(length=32))
-    name = Column(String(length=32))
-    level = Column(String(length=32))
-
-    order = Column(String(length=32))
-    price = Column(Float)
+    #: UNIX时间戳
+    time = Column(Integer)
+    #: 开盘价
+    open = Column(Float)
+    #: 收盘价/当前价格
+    close = Column(Float)
+    #: 最高价
+    high = Column(Float)
+    #: 最低价
+    low = Column(Float)
+    #: 成交量
     volume = Column(Float)
+    #: 成交金额
     turnover = Column(Float)
-    direction = Column(String(length=32))
-    order_type = Column(String(length=32))
+    #: 委卖价
+    ask_price = Column(Float)
+    #: 委买价
+    bid_price = Column(Float)
+    #: 委卖量
+    ask_vol = Column(JSON)
+    #: 委买量
+    bid_vol = Column(JSON)
+    #: 成交笔数
+    transaction_num = Column(Integer)
 
 
 class BlockKdataCommon(KdataCommon):
@@ -49,6 +62,10 @@ class BlockKdataCommon(KdataCommon):
 
 
 class IndexKdataCommon(KdataCommon):
+    pass
+
+
+class IndexhkKdataCommon(KdataCommon):
     pass
 
 
@@ -74,10 +91,17 @@ class StockKdataCommon(KdataCommon):
     up_limit = Column(Float)
     # 跌停价
     down_limit = Column(Float)
+    #: 是否涨停
+    is_limit_up = Column(Boolean)
+    #: 是否跌停
+    is_limit_down = Column(Boolean)
 
 
 class StockusKdataCommon(KdataCommon):
-    pass
+    #: 是否涨停
+    is_limit_up = Column(Boolean)
+    #: 是否跌停
+    is_limit_down = Column(Boolean)
 
 
 class StockhkKdataCommon(KdataCommon):
@@ -113,6 +137,7 @@ __all__ = [
     "TickCommon",
     "BlockKdataCommon",
     "IndexKdataCommon",
+    "IndexhkKdataCommon",
     "IndexusKdataCommon",
     "EtfKdataCommon",
     "StockKdataCommon",
@@ -125,6 +150,12 @@ __all__ = [
 # __init__.py structure:
 # common code of the package
 # export interface in __all__ which contains __all__ of its sub modules
+
+# import all from submodule indexhk
+from .indexhk import *
+from .indexhk import __all__ as _indexhk_all
+
+__all__ += _indexhk_all
 
 # import all from submodule trade_day
 from .trade_day import *

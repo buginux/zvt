@@ -19,5 +19,7 @@ class EMIndexusRecorder(Recorder):
 if __name__ == "__main__":
     recorder = EMIndexusRecorder()
     recorder.run()
+
+
 # the __all__ is generated
 __all__ = ["EMIndexusRecorder"]

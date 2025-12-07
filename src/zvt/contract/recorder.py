@@ -5,6 +5,7 @@ import uuid
 from typing import List
 
 import pandas as pd
+import requests
 from sqlalchemy.orm import Session
 
 from zvt.contract import IntervalLevel
@@ -12,16 +13,15 @@ from zvt.contract.api import get_db_session, get_schema_columns
 from zvt.contract.api import get_entities, get_data
 from zvt.contract.base_service import OneStateService
 from zvt.contract.schema import Mixin, TradableEntity
+from zvt.contract.utils import is_in_same_interval, evaluate_size_from_timestamp
 from zvt.contract.zvt_info import RecorderState
-from zvt.utils import pd_is_not_null
+from zvt.utils.pd_utils import pd_is_not_null
 from zvt.utils.time_utils import (
     to_pd_timestamp,
     TIME_FORMAT_DAY,
-    to_time_str,
-    evaluate_size_from_timestamp,
-    is_in_same_interval,
+    to_date_time_str,
     now_pd_timestamp,
-    now_time_str,
+    now_date_time_str,
 )
 from zvt.utils.utils import fill_domain_from_dict
 
@@ -66,6 +66,7 @@ class Recorder(OneStateService, metaclass=Meta):
 
         #: using to do db operations
         self.session = get_db_session(provider=self.provider, data_schema=self.data_schema)
+        self.http_session = requests.Session()
 
     def run(self):
         raise NotImplementedError
@@ -96,10 +97,13 @@ class EntityEventRecorder(Recorder):
         code=None,
         codes=None,
         day_data=False,
+        end_timestamp=None,
         entity_filters=None,
         ignore_failed=True,
+        return_unfinished=False,
     ) -> None:
         """
+        :param latest_trading_date:
         :param code:
         :param ignore_failed:
         :param entity_filters:
@@ -123,6 +127,7 @@ class EntityEventRecorder(Recorder):
         else:
             self.codes = codes
         self.day_data = day_data
+        self.end_timestamp = end_timestamp
 
         #: set entity_ids or (entity_type,exchanges,codes)
         self.entity_ids = None
@@ -132,6 +137,7 @@ class EntityEventRecorder(Recorder):
             self.entity_ids = entity_ids
         self.entity_filters = entity_filters
         self.ignore_failed = ignore_failed
+        self.return_unfinished = return_unfinished
 
         self.entity_session: Session = None
         self.entities: List = None
@@ -148,8 +154,10 @@ class EntityEventRecorder(Recorder):
             self.entity_session = get_db_session(provider=self.entity_provider, data_schema=self.entity_schema)
 
         if self.day_data:
+            if not self.end_timestamp:
+                self.end_timestamp = now_date_time_str()
             df = self.data_schema.query_data(
-                start_timestamp=now_time_str(), columns=["entity_id", "timestamp"], provider=self.provider
+                start_timestamp=self.end_timestamp, columns=["entity_id", "timestamp"], provider=self.provider
             )
             if pd_is_not_null(df):
                 entity_ids = df["entity_id"].tolist()
@@ -191,7 +199,10 @@ class TimeSeriesDataRecorder(EntityEventRecorder):
         fix_duplicate_way="add",
         start_timestamp=None,
         end_timestamp=None,
+        return_unfinished=False,
     ) -> None:
+        self.start_timestamp = to_pd_timestamp(start_timestamp)
+        self.end_timestamp = to_pd_timestamp(end_timestamp)
         super().__init__(
             force_update,
             sleeping_time,
@@ -201,15 +212,15 @@ class TimeSeriesDataRecorder(EntityEventRecorder):
             code=code,
             codes=codes,
             day_data=day_data,
+            end_timestamp=self.end_timestamp,
             entity_filters=entity_filters,
             ignore_failed=ignore_failed,
+            return_unfinished=return_unfinished,
         )
 
         self.real_time = real_time
         self.close_hour, self.close_minute = self.entity_schema.get_close_hour_and_minute()
         self.fix_duplicate_way = fix_duplicate_way
-        self.start_timestamp = to_pd_timestamp(start_timestamp)
-        self.end_timestamp = to_pd_timestamp(end_timestamp)
 
     def get_latest_saved_record(self, entity):
         order = eval("self.data_schema.{}.desc()".format(self.get_evaluated_time_field()))
@@ -300,7 +311,7 @@ class TimeSeriesDataRecorder(EntityEventRecorder):
         :return:
         :rtype:
         """
-        timestamp = to_time_str(original_data[self.get_original_time_field()], fmt=time_fmt)
+        timestamp = to_date_time_str(original_data[self.get_original_time_field()], fmt=time_fmt)
         return "{}_{}".format(entity.id, timestamp)
 
     def generate_domain(self, entity, original_data):
@@ -392,6 +403,8 @@ class TimeSeriesDataRecorder(EntityEventRecorder):
 
             if self.entity_session:
                 self.entity_session.close()
+            if self.http_session:
+                self.http_session.close()
         except Exception as e:
             self.logger.error(e)
 
@@ -513,6 +526,11 @@ class TimeSeriesDataRecorder(EntityEventRecorder):
                         "recording data for entity_id:{},{},error:{}".format(entity_item.id, self.data_schema, e)
                     )
                     raising_exception = e
+                    if self.return_unfinished:
+                        self.on_finish()
+                        unfinished_items = set(unfinished_items) - set(finished_items)
+                        return [item.entity_id for item in unfinished_items]
+
                     finished_items = unfinished_items
                     break
 
@@ -522,6 +540,8 @@ class TimeSeriesDataRecorder(EntityEventRecorder):
                 break
 
         self.on_finish()
+        if self.return_unfinished:
+            return []
 
         if raising_exception:
             raise raising_exception
@@ -547,6 +567,7 @@ class FixedCycleDataRecorder(TimeSeriesDataRecorder):
         level=IntervalLevel.LEVEL_1DAY,
         kdata_use_begin_time=False,
         one_day_trading_minutes=24 * 60,
+        return_unfinished=False,
     ) -> None:
         super().__init__(
             force_update,
@@ -563,6 +584,7 @@ class FixedCycleDataRecorder(TimeSeriesDataRecorder):
             fix_duplicate_way=fix_duplicate_way,
             start_timestamp=start_timestamp,
             end_timestamp=end_timestamp,
+            return_unfinished=return_unfinished,
         )
 
         self.level = IntervalLevel(level)

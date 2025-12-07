@@ -8,7 +8,7 @@ from sqlalchemy import Column, String, DateTime, Float
 from sqlalchemy.orm import Session
 
 from zvt.contract import IntervalLevel
-from zvt.utils.time_utils import date_and_time, is_same_time, now_pd_timestamp
+from zvt.utils.time_utils import date_and_time, is_same_date_time, now_pd_timestamp
 
 
 class Mixin(object):
@@ -22,6 +22,7 @@ class Mixin(object):
     entity_id = Column(String)
 
     #: the meaning could be different for different case,most time it means 'happen time'
+    #: Need replace with your timezone
     timestamp = Column(DateTime)
 
     # unix epoch,same meaning with timestamp
@@ -85,17 +86,17 @@ class Mixin(object):
             print(item)
             for k in data:
                 if k == "timestamp":
-                    assert is_same_time(item[0][k], data[k])
+                    assert is_same_date_time(item[0][k], data[k])
                 else:
                     assert item[0][k] == data[k]
 
     @classmethod
-    def get_one(cls, id, provider_index: int = 0, provider: str = None):
-        from .api import get_one
+    def get_by_id(cls, id, provider_index: int = 0, provider: str = None):
+        from .api import get_by_id
 
         if not provider:
             provider = cls.providers[provider_index]
-        return get_one(data_schema=cls, id=id, provider=provider)
+        return get_by_id(data_schema=cls, id=id, provider=provider)
 
     @classmethod
     def query_data(
@@ -117,6 +118,7 @@ class Mixin(object):
         session: Session = None,
         order=None,
         limit: int = None,
+        distinct=None,
         index: Union[str, list] = None,
         drop_index_col=False,
         time_field: str = "timestamp",
@@ -170,6 +172,7 @@ class Mixin(object):
             order=order,
             limit=limit,
             index=index,
+            distinct=distinct,
             drop_index_col=drop_index_col,
             time_field=time_field,
         )
@@ -218,6 +221,7 @@ class Mixin(object):
         """
         record data by the arguments
 
+        :param entity_id:
         :param provider_index:
         :param provider:
         :param force_update:
@@ -286,12 +290,10 @@ class Mixin(object):
                     kw[k] = kwargs[k]
 
                 r = recorder_class(**kw)
-                r.run()
-                return
+                return r.run()
             else:
                 r = recorder_class(**kw)
-                r.run()
-                return
+                return r.run()
         else:
             print(f"no recorders for {cls.__name__}")
 
@@ -324,6 +326,16 @@ class TradableEntity(Entity):
     """
 
     @classmethod
+    def get_timezone(cls):
+        """
+        overwrite it to get the timezone of the entity
+
+        :return: pytz timezone
+        """
+
+        return None
+
+    @classmethod
     def get_trading_dates(cls, start_date=None, end_date=None):
         """
         overwrite it to get the trading dates of the entity
@@ -335,23 +347,75 @@ class TradableEntity(Entity):
         return pd.date_range(start_date, end_date, freq="B")
 
     @classmethod
-    def get_trading_intervals(cls):
+    def get_trading_intervals(cls, include_bidding_time=False):
         """
         overwrite it to get the trading intervals of the entity
 
         :return: list of time intervals, in format [(start,end)]
         """
-        return [("09:30", "11:30"), ("13:00", "15:00")]
+        if include_bidding_time:
+            return [("09:15", "11:30"), ("13:00", "15:00")]
+        else:
+            return [("09:30", "11:30"), ("13:00", "15:00")]
+
+    @classmethod
+    def in_real_trading_time(cls, timestamp=None, include_bidding_time=True):
+        if not timestamp:
+            timestamp = now_pd_timestamp(tz=cls.get_timezone())
+        else:
+            timestamp = pd.Timestamp(timestamp, tz=cls.get_timezone())
+        for open_close in cls.get_trading_intervals(include_bidding_time=include_bidding_time):
+            open_time = date_and_time(the_date=timestamp.date(), the_time=open_close[0], tz=cls.get_timezone())
+            close_time = date_and_time(the_date=timestamp.date(), the_time=open_close[1], tz=cls.get_timezone())
+            if open_time <= timestamp <= close_time:
+                return True
+            else:
+                continue
+        return False
+
+    @classmethod
+    def before_trading_time(cls, timestamp=None):
+        if not timestamp:
+            timestamp = now_pd_timestamp(tz=cls.get_timezone())
+        else:
+            timestamp = pd.Timestamp(timestamp, tz=cls.get_timezone())
+        open_time = date_and_time(
+            the_date=timestamp.date(),
+            the_time=cls.get_trading_intervals(include_bidding_time=True)[0][0],
+            tz=cls.get_timezone(),
+        )
+        return timestamp < open_time
+
+    @classmethod
+    def after_trading_time(cls, timestamp=None):
+        if not timestamp:
+            timestamp = now_pd_timestamp(tz=cls.get_timezone())
+        else:
+            timestamp = pd.Timestamp(timestamp, tz=cls.get_timezone())
+        close_time = date_and_time(
+            the_date=timestamp.date(),
+            the_time=cls.get_trading_intervals(include_bidding_time=True)[-1][1],
+            tz=cls.get_timezone(),
+        )
+        return timestamp > close_time
 
     @classmethod
     def in_trading_time(cls, timestamp=None):
         if not timestamp:
-            timestamp = now_pd_timestamp()
+            timestamp = now_pd_timestamp(tz=cls.get_timezone())
         else:
-            timestamp = pd.Timestamp(timestamp)
-        open_time = date_and_time(the_date=timestamp.date(), the_time=cls.get_trading_intervals()[0][0])
-        close_time = date_and_time(the_date=timestamp.date(), the_time=cls.get_trading_intervals()[-1][1])
-        return open_time < timestamp < close_time
+            timestamp = pd.Timestamp(timestamp, tz=cls.get_timezone())
+        open_time = date_and_time(
+            the_date=timestamp.date(),
+            the_time=cls.get_trading_intervals(include_bidding_time=True)[0][0],
+            tz=cls.get_timezone(),
+        )
+        close_time = date_and_time(
+            the_date=timestamp.date(),
+            the_time=cls.get_trading_intervals(include_bidding_time=True)[-1][1],
+            tz=cls.get_timezone(),
+        )
+        return open_time <= timestamp <= close_time
 
     @classmethod
     def get_close_hour_and_minute(cls):
@@ -391,7 +455,7 @@ class TradableEntity(Entity):
     @classmethod
     def is_open_timestamp(cls, timestamp):
         timestamp = pd.Timestamp(timestamp)
-        return is_same_time(
+        return is_same_date_time(
             timestamp,
             date_and_time(the_date=timestamp.date(), the_time=cls.get_trading_intervals()[0][0]),
         )
@@ -399,7 +463,7 @@ class TradableEntity(Entity):
     @classmethod
     def is_close_timestamp(cls, timestamp):
         timestamp = pd.Timestamp(timestamp)
-        return is_same_time(
+        return is_same_date_time(
             timestamp,
             date_and_time(the_date=timestamp.date(), the_time=cls.get_trading_intervals()[-1][1]),
         )
@@ -417,7 +481,7 @@ class TradableEntity(Entity):
         timestamp = pd.Timestamp(timestamp)
 
         for t in cls.get_interval_timestamps(timestamp.date(), timestamp.date(), level=level):
-            if is_same_time(t, timestamp):
+            if is_same_date_time(t, timestamp):
                 return True
 
         return False

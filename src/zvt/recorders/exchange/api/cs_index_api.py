@@ -6,7 +6,7 @@ import requests
 
 from zvt.domain import IndexCategory
 from zvt.recorders.consts import DEFAULT_HEADER
-from zvt.utils import to_pd_timestamp
+from zvt.utils.time_utils import to_pd_timestamp
 
 logger = logging.getLogger(__name__)
 
@@ -103,5 +103,7 @@ def get_cs_index(index_type="sh"):
 if __name__ == "__main__":
     df = get_cs_index()
     print(df)
+
+
 # the __all__ is generated
 __all__ = ["get_cs_index"]

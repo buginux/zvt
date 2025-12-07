@@ -6,7 +6,7 @@ import pandas as pd
 from zvt.api.kdata import get_kdata_schema
 from zvt.contract.api import decode_entity_id
 from zvt.contract.drawer import Drawer, ChartType
-from zvt.utils import to_pd_timestamp
+from zvt.utils.time_utils import to_pd_timestamp
 
 
 def compare(
@@ -127,7 +127,7 @@ def composite_df(df):
     drawer.draw_pie(show=True)
 
 
-def composite_all(data_schema, column, timestamp, entity_ids=None, filters=None):
+def composite_all(data_schema, column, timestamp, provider=None, entity_ids=None, filters=None):
     if type(column) is not str:
         column = column.name
     if filters:
@@ -135,7 +135,11 @@ def composite_all(data_schema, column, timestamp, entity_ids=None, filters=None)
     else:
         filters = [data_schema.timestamp == to_pd_timestamp(timestamp)]
     df = data_schema.query_data(
-        entity_ids=entity_ids, columns=["entity_id", "timestamp", column], filters=filters, index="entity_id"
+        provider=provider,
+        entity_ids=entity_ids,
+        columns=["entity_id", "timestamp", column],
+        filters=filters,
+        index="entity_id",
     )
     entity_type, exchange, _ = decode_entity_id(df["entity_id"].iloc[0])
     pie_df = pd.DataFrame(columns=df.index, data=[df[column].tolist()])
@@ -196,6 +200,7 @@ if __name__ == "__main__":
         index="timestamp",
     )
     composite_df(df=df)
+
 
 # the __all__ is generated
 __all__ = ["compare", "compare_df", "distribute", "distribute_df", "composite", "composite_df", "composite_all"]

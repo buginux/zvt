@@ -3,11 +3,14 @@ import logging
 from typing import List
 
 import sqlalchemy
+from sqlalchemy import MetaData
 from sqlalchemy.ext.declarative import DeclarativeMeta
+from sqlalchemy.sql.ddl import CreateTable
+from sqlalchemy.sql.expression import text
 
 from zvt.contract import zvt_context
-from zvt.contract.schema import TradableEntity, Mixin
 from zvt.contract.api import get_db_engine, get_db_session_factory
+from zvt.contract.schema import TradableEntity, Mixin
 from zvt.utils.utils import add_to_map_list
 
 logger = logging.getLogger(__name__)
@@ -88,8 +91,7 @@ def register_schema(
 
         # create the db & table
         engine = get_db_engine(provider, db_name=db_name)
-        schema_base.metadata.create_all(engine)
-
+        schema_base.metadata.create_all(bind=engine)
         session_fac = get_db_session_factory(provider, db_name=db_name)
         session_fac.configure(bind=engine)
 
@@ -98,36 +100,62 @@ def register_schema(
 
         # create index for 'timestamp','entity_id','code','report_period','updated_timestamp
         for table_name, table in iter(schema_base.metadata.tables.items()):
+            # auto add new columns
+            db_meta = MetaData()
+            db_meta.reflect(bind=engine)
+            db_table = db_meta.tables[table_name]
+            existing_columns = [c.name for c in db_table.columns]
+            added_columns = [c for c in table.columns if c.name not in existing_columns]
             index_list = []
             with engine.connect() as con:
-                rs = con.execute("PRAGMA INDEX_LIST('{}')".format(table_name))
+                # FIXME: close WAL mode for saving space, most of time no need to write in multiple process
+                if db_name in ("zvt_info", "stock_news", "stock_tags"):
+                    con.execute(text("PRAGMA journal_mode=WAL;"))
+                else:
+                    con.execute(text("PRAGMA journal_mode=DELETE;"))
+
+                rs = con.execute(text("PRAGMA INDEX_LIST('{}')".format(table_name)))
                 for row in rs:
                     index_list.append(row[1])
 
-            logger.debug("engine:{},table:{},index:{}".format(engine, table_name, index_list))
+                try:
+                    # Using migration tool like Alembic is too complex
+                    # So we just support add new column, for others just change the db manually
+                    if added_columns:
+                        ddl_c = engine.dialect.ddl_compiler(engine.dialect, CreateTable(table))
+                        for added_column in added_columns:
+                            stmt = text(
+                                f"ALTER TABLE {table_name} ADD COLUMN {ddl_c.get_column_specification(added_column)}"
+                            )
+                            logger.info(f"{engine.url} migrations:\n {stmt}")
+                            con.execute(stmt)
 
-            for col in [
-                "timestamp",
-                "entity_id",
-                "code",
-                "report_period",
-                "created_timestamp",
-                "updated_timestamp",
-            ]:
-                if col in table.c:
-                    column = eval("table.c.{}".format(col))
-                    index_name = "{}_{}_index".format(table_name, col)
-                    if index_name not in index_list:
-                        index = sqlalchemy.schema.Index(index_name, column)
-                        index.create(engine)
-            for cols in [("timestamp", "entity_id"), ("timestamp", "code")]:
-                if (cols[0] in table.c) and (col[1] in table.c):
-                    column0 = eval("table.c.{}".format(col[0]))
-                    column1 = eval("table.c.{}".format(col[1]))
-                    index_name = "{}_{}_{}_index".format(table_name, col[0], col[1])
-                    if index_name not in index_list:
-                        index = sqlalchemy.schema.Index(index_name, column0, column1)
-                        index.create(engine)
+                    logger.debug("engine:{},table:{},index:{}".format(engine, table_name, index_list))
+
+                    for col in [
+                        "timestamp",
+                        "entity_id",
+                        "code",
+                        "report_period",
+                        "created_timestamp",
+                        "updated_timestamp",
+                    ]:
+                        if col in table.c:
+                            column = eval("table.c.{}".format(col))
+                            index_name = "{}_{}_index".format(table_name, col)
+                            if index_name not in index_list:
+                                index = sqlalchemy.schema.Index(index_name, column)
+                                index.create(engine)
+                    for cols in [("timestamp", "entity_id"), ("timestamp", "code")]:
+                        if (cols[0] in table.c) and (col[1] in table.c):
+                            column0 = eval("table.c.{}".format(col[0]))
+                            column1 = eval("table.c.{}".format(col[1]))
+                            index_name = "{}_{}_{}_index".format(table_name, col[0], col[1])
+                            if index_name not in index_list:
+                                index = sqlalchemy.schema.Index(index_name, column0, column1)
+                                index.create(engine)
+                except Exception as e:
+                    logger.error(e)
 
 
 # the __all__ is generated

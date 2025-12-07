@@ -2,7 +2,6 @@
 
 from zvt.contract.api import df_to_db
 from zvt.contract.recorder import Recorder
-from zvt.domain import Future
 from zvt.domain.meta.currency_meta import Currency
 from zvt.recorders.em import em_api
 
@@ -20,5 +19,7 @@ class EMCurrencyRecorder(Recorder):
 if __name__ == "__main__":
     recorder = EMCurrencyRecorder(force_update=True)
     recorder.run()
+
+
 # the __all__ is generated
 __all__ = ["EMCurrencyRecorder"]

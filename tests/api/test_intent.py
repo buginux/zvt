@@ -2,7 +2,7 @@
 from zvt.api.intent import compare, distribute, composite, composite_all
 from zvt.contract.drawer import ChartType
 from zvt.domain import FinanceFactor, CashFlowStatement, BalanceSheet, Stock1dKdata
-from zvt.utils import to_pd_timestamp
+from zvt.utils.time_utils import to_pd_timestamp
 
 
 def test_compare_kdata():
@@ -66,5 +66,9 @@ def test_composite():
 
 def test_composite_all():
     composite_all(
-        entity_ids=None, data_schema=Stock1dKdata, column=Stock1dKdata.turnover, timestamp=to_pd_timestamp("2016-12-02")
+        provider="joinquant",
+        entity_ids=None,
+        data_schema=Stock1dKdata,
+        column=Stock1dKdata.turnover,
+        timestamp=to_pd_timestamp("2016-12-02"),
     )

@@ -8,7 +8,7 @@ from tenacity import retry, wait_fixed, stop_after_attempt
 from zvt.contract.api import get_data_count, get_data
 from zvt.contract.recorder import TimestampsDataRecorder, TimeSeriesDataRecorder
 from zvt.domain import CompanyType
-from zvt.domain.meta.stock_meta import Stock, StockDetail
+from zvt.domain.meta.stock_meta import StockDetail
 from zvt.utils.time_utils import to_pd_timestamp
 
 logger = logging.getLogger(__name__)
@@ -70,7 +70,7 @@ def call_eastmoney_api(url=None, method='post', param=None, path_fields=None):
     if method == 'post':
         resp = requests.post(url, json=param)
 
-    resp.encoding = "utf8"
+    resp.encoding = "utf-8"
 
     try:
         origin_result = resp.json().get("Result")

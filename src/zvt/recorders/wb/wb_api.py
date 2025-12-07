@@ -7,7 +7,8 @@ import pandas as pd
 import requests
 
 from zvt.contract.api import get_entity_code
-from zvt.utils import to_pd_timestamp, normal_index_df
+from zvt.utils.pd_utils import normal_index_df
+from zvt.utils.time_utils import to_pd_timestamp
 
 WORLD_BANK_URL = "http://api.worldbank.org/v2"
 
@@ -248,6 +249,8 @@ if __name__ == "__main__":
     print(df)
     # df = get_sources()
     # print(df)
+
+
 # the __all__ is generated
 __all__ = [
     "get_countries",

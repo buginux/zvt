@@ -7,6 +7,8 @@ class IntervalLevel(Enum):
     Repeated fixed time interval, e.g, 5m, 1d.
     """
 
+    #: level l2 quote
+    LEVEL_L2_QUOTE = "l2quote"
     #: level tick
     LEVEL_TICK = "tick"
     #: 1 minute
@@ -126,10 +128,10 @@ class AdjustType(Enum):
     #: 不复权
     bfq = "bfq"
     #: pre adjusted
-    #: 不复权
+    #: 前复权
     qfq = "qfq"
     #: post adjusted
-    #: 不复权
+    #: 后复权
     hfq = "hfq"
 
 
@@ -147,7 +149,7 @@ class ActorType(Enum):
     #: 信托
     trust = "trust"
     #: 券商
-    broker = "broker"
+    broker = "qmt"
     #: 私募
     private_equity = "private_equity"
     #: 公司(可能包括私募)
@@ -158,6 +160,9 @@ class TradableType(Enum):
     #: A股(中国)
     #: China stock
     stock = "stock"
+    #: 可转债(中国)
+    #: China convertible Bond
+    cbond = "cbond"
     #: A股指数(中国)
     #: China index
     index = "index"
@@ -170,9 +175,14 @@ class TradableType(Enum):
     #: 美股指数
     #: USA index
     indexus = "indexus"
+    #: USA block
+    blockus = "blockus"
     #: 港股
     #: Hongkong Stock
     stockhk = "stockhk"
+    #: 港股指数
+    #: Hongkong Index
+    indexhk = "indexhk"
     #: 期货(中国)
     #: China future
     future = "future"
@@ -195,6 +205,8 @@ class Exchange(Enum):
     sh = "sh"
     #: 深证交易所
     sz = "sz"
+    #: 北交所
+    bj = "bj"
 
     #: 对于中国的非交易所的 标的
     cn = "cn"
@@ -225,6 +237,9 @@ class Exchange(Enum):
     #: 上海国际能源交易中心
     ine = "ine"
 
+    #: 广州期货所
+    gfex = "gfex"
+
     #: 外汇交易所(虚拟)
     #: currency exchange(virtual)
     forex = "forex"
@@ -234,9 +249,12 @@ class Exchange(Enum):
 tradable_type_map_exchanges = {
     TradableType.block: [Exchange.cn],
     TradableType.index: [Exchange.sh, Exchange.sz],
-    TradableType.stock: [Exchange.sh, Exchange.sz],
+    TradableType.stock: [Exchange.sh, Exchange.sz, Exchange.bj],
+    TradableType.cbond: [Exchange.sh, Exchange.sz],
     TradableType.stockhk: [Exchange.hk],
+    TradableType.indexhk: [Exchange.hk],
     TradableType.stockus: [Exchange.nasdaq, Exchange.nyse],
+    TradableType.blockus: [Exchange.us],
     TradableType.indexus: [Exchange.us],
     TradableType.future: [Exchange.shfe, Exchange.dce, Exchange.czce, Exchange.cffex, Exchange.ine],
     TradableType.coin: [Exchange.binance, Exchange.huobipro],
@@ -253,17 +271,9 @@ from .context import zvt_context
 
 zvt_context = zvt_context
 
+
 # the __all__ is generated
-__all__ = [
-    "IntervalLevel",
-    "AdjustType",
-    "ActorType",
-    "TradableType",
-    "Exchange",
-    "tradable_type_map_exchanges",
-    "get_entity_exchanges",
-    "zvt_context",
-]
+__all__ = ["IntervalLevel", "AdjustType", "ActorType", "TradableType", "Exchange", "get_entity_exchanges"]
 
 # __init__.py structure:
 # common code of the package

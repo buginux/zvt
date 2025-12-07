@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 
-import dash_core_components as dcc
+from dash import dcc
 
 from zvt.api.kdata import get_kdata_schema
-from zvt.api.trader_info_api import OrderReader, AccountStatsReader
+from zvt.contract import zvt_context
 from zvt.contract.api import decode_entity_id
 from zvt.contract.drawer import Drawer
 from zvt.contract.reader import DataReader
-from zvt.contract import zvt_context
+from zvt.trader.trader_info_api import OrderReader, AccountStatsReader
 from zvt.utils.pd_utils import pd_is_not_null
 
 
@@ -36,9 +36,9 @@ def get_trading_signals_figure(
     if not end_timestamp:
         end_timestamp = order_reader.end_timestamp
     kdata_reader = DataReader(
-        entity_ids=[entity_id],
         data_schema=data_schema,
         entity_schema=zvt_context.tradable_schema_map.get(entity_type),
+        entity_ids=[entity_id],
         start_timestamp=start_timestamp,
         end_timestamp=end_timestamp,
         level=order_reader.level,

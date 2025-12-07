@@ -3,13 +3,14 @@ from typing import Optional, Type, List, Union
 
 import pandas as pd
 
-from zvt.api import get_top_performance_by_month
 from zvt.api.selector import get_players
+from zvt.api.stats import get_top_performance_by_month
 from zvt.contract import TradableEntity, IntervalLevel, AdjustType
 from zvt.contract.factor import Transformer, Accumulator
 from zvt.domain import Stock
-from zvt.factors import TechnicalFactor
-from zvt.utils import pd_is_not_null, pre_month_start_date, next_date
+from zvt.factors.technical_factor import TechnicalFactor
+from zvt.utils.pd_utils import pd_is_not_null
+from zvt.utils.time_utils import pre_month_start_date, date_time_by_interval
 
 
 def top_dragon_and_tiger(data_provider="em", start_timestamp="2021-01-01", end_timestamp="2022-01-01"):
@@ -21,7 +22,7 @@ def top_dragon_and_tiger(data_provider="em", start_timestamp="2021-01-01", end_t
         for entity_id in df.index[:30]:
             players = get_players(
                 entity_id=entity_id,
-                start_timestamp=next_date(start_date, 15),
+                start_timestamp=date_time_by_interval(start_date, 15),
                 end_timestamp=end_timestamp,
                 provider=data_provider,
                 direction="in",
@@ -51,7 +52,7 @@ class DragonTigerFactor(TechnicalFactor):
         level: Union[str, IntervalLevel] = IntervalLevel.LEVEL_1DAY,
         category_field: str = "entity_id",
         time_field: str = "timestamp",
-        computing_window: int = None,
+        keep_window: int = None,
         keep_all_timestamp: bool = False,
         fill_method: str = "ffill",
         effective_number: int = None,
@@ -80,7 +81,7 @@ class DragonTigerFactor(TechnicalFactor):
             level,
             category_field,
             time_field,
-            computing_window,
+            keep_window,
             keep_all_timestamp,
             fill_method,
             effective_number,

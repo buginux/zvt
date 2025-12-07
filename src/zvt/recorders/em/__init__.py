@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+
+
 # the __all__ is generated
 __all__ = []
 
@@ -12,30 +14,6 @@ from .quotes import __all__ as _quotes_all
 
 __all__ += _quotes_all
 
-# import all from submodule meta
-from .meta import *
-from .meta import __all__ as _meta_all
-
-__all__ += _meta_all
-
-# import all from submodule macro
-from .macro import *
-from .macro import __all__ as _macro_all
-
-__all__ += _macro_all
-
-# import all from submodule news
-from .news import *
-from .news import __all__ as _news_all
-
-__all__ += _news_all
-
-# import all from submodule em_api
-from .em_api import *
-from .em_api import __all__ as _em_api_all
-
-__all__ += _em_api_all
-
 # import all from submodule trading
 from .trading import *
 from .trading import __all__ as _trading_all
@@ -47,3 +25,27 @@ from .actor import *
 from .actor import __all__ as _actor_all
 
 __all__ += _actor_all
+
+# import all from submodule em_api
+from .em_api import *
+from .em_api import __all__ as _em_api_all
+
+__all__ += _em_api_all
+
+# import all from submodule macro
+from .macro import *
+from .macro import __all__ as _macro_all
+
+__all__ += _macro_all
+
+# import all from submodule meta
+from .meta import *
+from .meta import __all__ as _meta_all
+
+__all__ += _meta_all
+
+# import all from submodule misc
+from .misc import *
+from .misc import __all__ as _misc_all
+
+__all__ += _misc_all

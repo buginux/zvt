@@ -9,7 +9,7 @@ from zvt.contract.factor import Accumulator
 from zvt.domain import Stock
 from zvt.factors.algorithm import live_or_dead
 from zvt.factors.technical_factor import TechnicalFactor
-from zvt.utils import pd_is_not_null
+from zvt.utils.pd_utils import pd_is_not_null
 
 
 def get_ma_stats_factor_schema(entity_type: str, level: Union[IntervalLevel, str] = IntervalLevel.LEVEL_1DAY):
@@ -85,7 +85,7 @@ class MaStatsFactor(TechnicalFactor):
         level: Union[str, IntervalLevel] = IntervalLevel.LEVEL_1DAY,
         category_field: str = "entity_id",
         time_field: str = "timestamp",
-        computing_window: int = None,
+        keep_window: int = None,
         keep_all_timestamp: bool = False,
         fill_method: str = "ffill",
         effective_number: int = None,
@@ -129,7 +129,7 @@ class MaStatsFactor(TechnicalFactor):
             level,
             category_field,
             time_field,
-            computing_window,
+            keep_window,
             keep_all_timestamp,
             fill_method,
             effective_number,
@@ -161,7 +161,7 @@ class TFactor(MaStatsFactor):
         level: Union[str, IntervalLevel] = IntervalLevel.LEVEL_1DAY,
         category_field: str = "entity_id",
         time_field: str = "timestamp",
-        computing_window: int = None,
+        keep_window: int = None,
         keep_all_timestamp: bool = False,
         fill_method: str = "ffill",
         effective_number: int = None,
@@ -189,7 +189,7 @@ class TFactor(MaStatsFactor):
             level,
             category_field,
             time_field,
-            computing_window,
+            keep_window,
             keep_all_timestamp,
             fill_method,
             effective_number,
@@ -217,6 +217,7 @@ if __name__ == "__main__":
 
     # distribute(f.factor_df[['area']],'area')
     f.draw(show=True)
+
 
 # the __all__ is generated
 __all__ = ["get_ma_stats_factor_schema", "MaStatsAccumulator", "MaStatsFactor", "TFactor"]

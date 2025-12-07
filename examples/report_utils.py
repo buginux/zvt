@@ -3,41 +3,118 @@ import logging
 import time
 from typing import Type
 
-from examples.utils import add_to_eastmoney
+from examples.tag_utils import group_stocks_by_tag, get_main_line_tags, get_main_line_hidden_tags
+from examples.utils import msg_group_stocks_by_topic
 from zvt import zvt_config
-from zvt.api import get_top_volume_entities, get_top_performance_entities, TopType
 from zvt.api.kdata import get_latest_kdata_date, get_kdata_schema, default_adjust_type
+from zvt.api.selector import get_limit_up_stocks
+from zvt.api.stats import get_top_performance_entities_by_periods, get_top_volume_entities, TopType
 from zvt.contract import IntervalLevel
-from zvt.contract.api import get_entities, get_entity_schema, get_entity_ids
-from zvt.contract.factor import Factor
-from zvt.factors import TargetSelector, SelectMode
+from zvt.contract.api import get_entities, get_entity_schema
+from zvt.contract.factor import Factor, TargetType
+from zvt.domain import StockNews
 from zvt.informer import EmailInformer
-from zvt.utils import next_date
+from zvt.informer.inform_utils import add_to_eastmoney
+from zvt.utils.time_utils import date_time_by_interval
 
 logger = logging.getLogger("__name__")
 
 
 def inform(
-    action: EmailInformer, entity_ids, target_date, title, entity_provider, entity_type, em_group, em_group_over_write
+    action: EmailInformer,
+    entity_ids,
+    target_date,
+    title,
+    entity_provider,
+    entity_type,
+    em_group,
+    em_group_over_write,
+    em_group_over_write_tag=False,
+    group_by_topic=False,
+    group_by_tag=True,
+    special_hidden_tag="北交所",
 ):
     msg = "no targets"
     if entity_ids:
         entities = get_entities(
             provider=entity_provider, entity_type=entity_type, entity_ids=entity_ids, return_type="domain"
         )
-        if em_group:
-            try:
-                codes = [entity.code for entity in entities]
-                add_to_eastmoney(codes=codes, entity_type=entity_type, group=em_group, over_write=em_group_over_write)
-            except Exception as e:
-                action.send_message(
-                    zvt_config["email_username"],
-                    f"{target_date} {title} error",
-                    f"{target_date} {title} error: {e}",
-                )
+        entities = [entity for entity in entities if entity.entity_id in entity_ids]
+        print(len(entities))
+        print(len(entity_ids))
+        assert len(entities) == len(entity_ids)
 
-        infos = [f"{entity.name}({entity.code})" for entity in entities]
-        msg = "\n".join(infos) + "\n"
+        if group_by_topic and (entity_type == "stock"):
+            StockNews.record_data(
+                entity_ids=entity_ids,
+                provider="em",
+                force_update=False,
+                sleeping_time=0.05,
+                day_data=True,
+            )
+
+            msg = msg_group_stocks_by_topic(entities=entities, threshold=1, days_ago=60)
+            logger.info(msg)
+            action.send_message(zvt_config["email_username"], f"{target_date} {title}", msg)
+
+        if group_by_tag and (entity_type == "stock"):
+            main_line_hidden_tags = get_main_line_hidden_tags()
+            sorted_entities = group_stocks_by_tag(
+                entities=entities, hidden_tags=main_line_hidden_tags + [special_hidden_tag]
+            )
+            msg = ""
+            main_line = []
+            others = []
+            special = []
+            main_line_tags = get_main_line_tags()
+            for index, (tag, stocks) in enumerate(sorted_entities):
+                msg = msg + f"^^^^^^ {tag}[{len(stocks)}/{len(entities)}] ^^^^^^\n"
+                msg = msg + "\n".join([f"{stock.name}({stock.code})" for stock in stocks]) + "\n"
+                if tag == special_hidden_tag:
+                    special = special + stocks
+                elif (not main_line_tags) and (tag != "未知") and (index < 3):
+                    main_line = main_line + stocks
+                elif main_line_tags and (tag in main_line_tags):
+                    main_line = main_line + stocks
+                elif main_line_hidden_tags and (tag in main_line_hidden_tags):
+                    main_line = main_line + stocks
+                else:
+                    others = others + stocks
+
+            # 主线
+            if main_line:
+                codes = [entity.code for entity in main_line]
+                add_to_eastmoney(codes=codes, entity_type=entity_type, group="主线", over_write=em_group_over_write_tag)
+
+            # 其他
+            if others:
+                codes = [entity.code for entity in others]
+                if not em_group:
+                    em_group = "其他"
+                add_to_eastmoney(codes=codes, entity_type=entity_type, group=em_group, over_write=em_group_over_write)
+            # 特别处理
+            if special:
+                codes = [entity.code for entity in special]
+                add_to_eastmoney(
+                    codes=codes, entity_type=entity_type, group=special_hidden_tag, over_write=em_group_over_write_tag
+                )
+        else:
+            if em_group:
+                try:
+                    codes = [entity.code for entity in entities]
+                    add_to_eastmoney(
+                        codes=codes, entity_type=entity_type, group=em_group, over_write=em_group_over_write
+                    )
+                except Exception as e:
+                    action.send_message(
+                        zvt_config["email_username"],
+                        f"{target_date} {title} error",
+                        f"{target_date} {title} error: {e}",
+                    )
+
+            infos = [f"{entity.name}({entity.code})" for entity in entities]
+            msg = "\n".join(infos) + "\n"
+
     logger.info(msg)
     action.send_message(zvt_config["email_username"], f"{target_date} {title}", msg)
 
@@ -48,8 +125,10 @@ def report_targets(
     data_provider,
     title,
     entity_type="stock",
+    informer: EmailInformer = None,
     em_group=None,
     em_group_over_write=True,
+    em_group_over_write_tag=False,
     filter_by_volume=True,
     adjust_type=None,
     start_timestamp="2019-01-01",
@@ -61,8 +140,6 @@ def report_targets(
     error_count = 0
 
     while error_count <= 10:
-        email_action = EmailInformer()
-
         try:
             if not adjust_type:
                 adjust_type = default_adjust_type(entity_type=entity_type)
@@ -77,7 +154,7 @@ def report_targets(
                 # 成交量
                 vol_df = get_top_volume_entities(
                     entity_type=entity_type,
-                    start_timestamp=next_date(target_date, -30),
+                    start_timestamp=date_time_by_interval(target_date, -30),
                     end_timestamp=target_date,
                     adjust_type=adjust_type,
                     pct=0.4,
@@ -109,9 +186,6 @@ def report_targets(
                     current_entity_pool = set(factor_kv.pop("entity_ids"))
 
             # add the factor
-            my_selector = TargetSelector(
-                start_timestamp=start_timestamp, end_timestamp=target_date, select_mode=SelectMode.condition_or
-            )
             entity_schema = get_entity_schema(entity_type=entity_type)
             tech_factor = factor_cls(
                 entity_schema=entity_schema,
@@ -123,21 +197,19 @@ def report_targets(
                 adjust_type=adjust_type,
                 **factor_kv,
             )
-            my_selector.add_factor(tech_factor)
 
-            my_selector.run()
-
-            long_stocks = my_selector.get_open_long_targets(timestamp=target_date)
+            long_stocks = tech_factor.get_targets(timestamp=target_date, target_type=TargetType.positive)
 
             inform(
-                email_action,
+                informer,
                 entity_ids=long_stocks,
                 target_date=target_date,
-                title=title,
+                title=f"{entity_type} {title}({len(long_stocks)})",
                 entity_provider=entity_provider,
                 entity_type=entity_type,
                 em_group=em_group,
                 em_group_over_write=em_group_over_write,
+                em_group_over_write_tag=em_group_over_write_tag,
             )
 
             break
@@ -146,127 +218,98 @@ def report_targets(
             time.sleep(60 * 3)
             error_count = error_count + 1
             if error_count == 10:
-                email_action.send_message(
+                informer.send_message(
                     zvt_config["email_username"],
                     f"report {entity_type}{factor_cls.__name__} error",
                     f"report {entity_type}{factor_cls.__name__} error: {e}",
                 )
 
 
-def report_top_entites(
+def report_top_entities(
     entity_provider,
     data_provider,
     periods=None,
     ignore_new_stock=True,
+    ignore_st=True,
+    entity_ids=None,
     entity_type="stock",
     adjust_type=None,
     top_count=30,
     turnover_threshold=100000000,
     turnover_rate_threshold=0.02,
+    informer: EmailInformer = None,
+    title="最强",
+    em_group=None,
     em_group_over_write=True,
+    em_group_over_write_tag=False,
     return_type=TopType.positive,
+    include_limit_up=False,
 ):
-    if periods is None:
-        periods = [7, 30, 365]
+    error_count = 0
+
     if not adjust_type:
         adjust_type = default_adjust_type(entity_type=entity_type)
-    kdata_schema = get_kdata_schema(entity_type=entity_type, adjust_type=adjust_type)
-    entity_schema = get_entity_schema(entity_type=entity_type)
 
-    target_date = get_latest_kdata_date(provider=data_provider, entity_type=entity_type, adjust_type=adjust_type)
-    email_action = EmailInformer()
+    while error_count <= 10:
+        try:
+            target_date = get_latest_kdata_date(
+                provider=data_provider, entity_type=entity_type, adjust_type=adjust_type
+            )
 
-    # 至少上市一年
-    filter_entity_ids = []
-    if ignore_new_stock:
-        pre_year = next_date(target_date, -365)
+            selected, real_period = get_top_performance_entities_by_periods(
+                entity_provider=entity_provider,
+                data_provider=data_provider,
+                periods=periods,
+                ignore_new_stock=ignore_new_stock,
+                ignore_st=ignore_st,
+                entity_ids=entity_ids,
+                entity_type=entity_type,
+                adjust_type=adjust_type,
+                top_count=top_count,
+                turnover_threshold=turnover_threshold,
+                turnover_rate_threshold=turnover_rate_threshold,
+                return_type=return_type,
+            )
 
-        entity_ids = get_entity_ids(
-            provider=entity_provider, entity_schema=entity_schema, filters=[entity_schema.timestamp <= pre_year]
-        )
+            if include_limit_up and (entity_type == "stock"):
+                limit_up_stocks = get_limit_up_stocks(timestamp=target_date)
+                if limit_up_stocks:
+                    selected = list(set(selected + limit_up_stocks))
 
-        if not entity_ids:
-            msg = f"{entity_type} no entity_ids listed one year"
-            logger.error(msg)
-            email_action.send_message(zvt_config["email_username"], "report_top_stats error", msg)
-            return
-        filter_entity_ids = entity_ids
-
-    filter_turnover_df = kdata_schema.query_data(
-        filters=[
-            kdata_schema.turnover >= turnover_threshold,
-            kdata_schema.turnover_rate >= turnover_rate_threshold,
-        ],
-        provider=data_provider,
-        start_timestamp=target_date,
-        index="entity_id",
-        columns=["entity_id", "code"],
-    )
-    if filter_entity_ids:
-        filter_entity_ids = set(filter_entity_ids) & set(filter_turnover_df.index.tolist())
-    else:
-        filter_entity_ids = filter_turnover_df.index.tolist()
-
-    if not filter_entity_ids:
-        msg = f"{entity_type} no entity_ids selected"
-        logger.error(msg)
-        email_action.send_message(zvt_config["email_username"], "report_top_stats error", msg)
-        return
-
-    logger.info(f"{entity_type} filter_entity_ids size: {len(filter_entity_ids)}")
-    filters = [kdata_schema.entity_id.in_(filter_entity_ids)]
-    for i, period in enumerate(periods):
-        start = next_date(target_date, -period)
-        positive_df, negative_df = get_top_performance_entities(
-            entity_type=entity_type,
-            start_timestamp=start,
-            filters=filters,
-            pct=1,
-            show_name=True,
-            entity_provider=entity_provider,
-            data_provider=data_provider,
-            return_type=return_type,
-        )
-
-        if return_type == TopType.positive:
-            tag = "最靓仔"
-            df = positive_df
-        else:
-            tag = "谁有我惨"
-            df = negative_df
-
-        if i == 0:
             inform(
-                email_action,
-                entity_ids=df.index[:top_count].tolist(),
+                informer,
+                entity_ids=selected,
                 target_date=target_date,
-                title=f"{entity_type} {period}日内 {tag}",
+                title=f"{entity_type} {title}({len(selected)})",
                 entity_provider=entity_provider,
                 entity_type=entity_type,
-                em_group=tag,
+                em_group=em_group,
                 em_group_over_write=em_group_over_write,
+                em_group_over_write_tag=em_group_over_write_tag,
             )
-        else:
-            inform(
-                email_action,
-                entity_ids=df.index[:top_count].tolist(),
-                target_date=target_date,
-                title=f"{entity_type} {period}日内 {tag}",
-                entity_provider=entity_provider,
-                entity_type=entity_type,
-                em_group=tag,
-                em_group_over_write=False,
-            )
+            return real_period
+        except Exception as e:
+            logger.exception("report error:{}".format(e))
+            time.sleep(30)
+            error_count = error_count + 1
 
 
 if __name__ == "__main__":
-    report_top_entites(
-        entity_type="stockhk",
+    report_top_entities(
+        entity_type="block",
         entity_provider="em",
         data_provider="em",
-        turnover_threshold=0,
-        turnover_rate_threshold=0,
+        top_count=10,
+        periods=[365, 750],
+        ignore_new_stock=False,
+        ignore_st=False,
+        adjust_type=None,
+        turnover_threshold=50000000,
+        turnover_rate_threshold=0.005,
+        em_group=None,
+        em_group_over_write=False,
+        return_type=TopType.negative,
     )
 
 # the __all__ is generated
-__all__ = ["report_targets", "report_top_entites"]
+__all__ = ["report_targets", "report_top_entities"]

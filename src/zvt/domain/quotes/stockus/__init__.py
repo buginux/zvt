@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+
+
 # the __all__ is generated
 __all__ = []
 
@@ -11,6 +13,12 @@ from .stockus_1d_kdata import *
 from .stockus_1d_kdata import __all__ as _stockus_1d_kdata_all
 
 __all__ += _stockus_1d_kdata_all
+
+# import all from submodule stockus_quote
+from .stockus_quote import *
+from .stockus_quote import __all__ as _stockus_quote_all
+
+__all__ += _stockus_quote_all
 
 # import all from submodule stockus_1d_hfq_kdata
 from .stockus_1d_hfq_kdata import *

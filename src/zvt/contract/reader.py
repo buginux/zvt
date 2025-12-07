@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import json
 import logging
 import time
 from typing import List, Union, Type, Optional
@@ -44,7 +43,7 @@ class DataReader(Drawable):
     def __init__(
         self,
         data_schema: Type[Mixin],
-        entity_schema: Type[TradableEntity],
+        entity_schema: Type[TradableEntity] = None,
         provider: str = None,
         entity_provider: str = None,
         entity_ids: List[str] = None,
@@ -59,7 +58,7 @@ class DataReader(Drawable):
         level: IntervalLevel = None,
         category_field: str = "entity_id",
         time_field: str = "timestamp",
-        computing_window: int = None,
+        keep_window: int = None,
     ) -> None:
         self.logger = logging.getLogger(self.__class__.__name__)
 
@@ -76,7 +75,7 @@ class DataReader(Drawable):
         self.entity_ids = entity_ids
 
         # 转换成标准entity_id
-        if not self.entity_ids:
+        if entity_schema and not self.entity_ids:
             df = get_entities(
                 entity_schema=entity_schema, provider=self.entity_provider, exchanges=self.exchanges, codes=self.codes
             )
@@ -94,7 +93,7 @@ class DataReader(Drawable):
 
         self.category_field = category_field
         self.time_field = time_field
-        self.computing_window = computing_window
+        self.computing_window = keep_window
 
         self.category_col = eval("self.data_schema.{}".format(self.category_field))
         self.time_col = eval("self.data_schema.{}".format(self.time_field))
@@ -182,13 +181,13 @@ class DataReader(Drawable):
         :return:
         :rtype:
         """
+
         if not pd_is_not_null(self.data_df):
             self.load_data()
             return
 
         start_time = time.time()
 
-        #: FIXME:we suppose history data should be there at first
         has_got = []
         dfs = []
         changed = False
@@ -226,7 +225,8 @@ class DataReader(Drawable):
                     #: if got data,just move to another entity_id
                     changed = True
                     has_got.append(entity_id)
-                    df = df.append(added_df, sort=False)
+                    # df = df.append(added_df, sort=False)
+                    df = pd.concat([df, added_df], sort=False)
                     dfs.append(df)
                 else:
                     cost_time = time.time() - start_time
@@ -275,13 +275,15 @@ if __name__ == "__main__":
     from zvt.domain import Stock1dKdata, Stock
 
     data_reader = DataReader(
-        codes=["002572", "000338"],
         data_schema=Stock1dKdata,
         entity_schema=Stock,
+        codes=["002572", "000338"],
         start_timestamp="2017-01-01",
         end_timestamp="2019-06-10",
     )
 
     data_reader.draw(show=True)
+
+
 # the __all__ is generated
 __all__ = ["DataListener", "DataReader"]

@@ -12,7 +12,7 @@ from zvt.contract.recorder import FixedCycleDataRecorder
 from zvt.domain import Index, IndexKdataCommon
 from zvt.recorders.joinquant.common import to_jq_trading_level, to_jq_entity_id
 from zvt.utils.pd_utils import pd_is_not_null
-from zvt.utils.time_utils import to_time_str, TIME_FORMAT_DAY, TIME_FORMAT_ISO8601
+from zvt.utils.time_utils import to_date_time_str, TIME_FORMAT_DAY, TIME_FORMAT_ISO8601
 
 
 class JqChinaIndexKdataRecorder(FixedCycleDataRecorder):
@@ -44,6 +44,7 @@ class JqChinaIndexKdataRecorder(FixedCycleDataRecorder):
         level=IntervalLevel.LEVEL_1DAY,
         kdata_use_begin_time=False,
         one_day_trading_minutes=24 * 60,
+        return_unfinished=False,
     ) -> None:
         level = IntervalLevel(level)
         self.data_schema = get_kdata_schema(entity_type="index", level=level)
@@ -67,6 +68,7 @@ class JqChinaIndexKdataRecorder(FixedCycleDataRecorder):
             level,
             kdata_use_begin_time,
             one_day_trading_minutes,
+            return_unfinished,
         )
 
     def init_entities(self):
@@ -88,7 +90,7 @@ class JqChinaIndexKdataRecorder(FixedCycleDataRecorder):
                 # fields=['date', 'open', 'close', 'low', 'high', 'volume', 'money']
             )
         else:
-            end_timestamp = to_time_str(self.end_timestamp)
+            end_timestamp = to_date_time_str(self.end_timestamp)
             df = get_bars(
                 to_jq_entity_id(entity),
                 count=size,
@@ -108,9 +110,9 @@ class JqChinaIndexKdataRecorder(FixedCycleDataRecorder):
 
             def generate_kdata_id(se):
                 if self.level >= IntervalLevel.LEVEL_1DAY:
-                    return "{}_{}".format(se["entity_id"], to_time_str(se["timestamp"], fmt=TIME_FORMAT_DAY))
+                    return "{}_{}".format(se["entity_id"], to_date_time_str(se["timestamp"], fmt=TIME_FORMAT_DAY))
                 else:
-                    return "{}_{}".format(se["entity_id"], to_time_str(se["timestamp"], fmt=TIME_FORMAT_ISO8601))
+                    return "{}_{}".format(se["entity_id"], to_date_time_str(se["timestamp"], fmt=TIME_FORMAT_ISO8601))
 
             df["id"] = df[["entity_id", "timestamp"]].apply(generate_kdata_id, axis=1)
 
@@ -135,5 +137,7 @@ if __name__ == "__main__":
     JqChinaIndexKdataRecorder(level=level, sleeping_time=0, codes=codes, real_time=False).run()
 
     print(get_kdata(entity_id="index_sh_000001", limit=10))
+
+
 # the __all__ is generated
 __all__ = ["JqChinaIndexKdataRecorder"]

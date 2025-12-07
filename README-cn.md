@@ -8,6 +8,17 @@
 [![codecov.io](https://codecov.io/github/zvtvz/zvt/coverage.svg?branch=master)](https://codecov.io/github/zvtvz/zvt)
 [![Downloads](https://pepy.tech/badge/zvt/month)](https://pepy.tech/project/zvt)
 
+**缘起**
+
+[炒股的三大原理](https://mp.weixin.qq.com/s/FoFR63wFSQIE_AyFubkZ6Q)
+
+**声明**
+
+本项目目前不保证任何向后兼容性，请谨慎升级。  
+随着作者思想的变化，一些以前觉得重要的东西可能也变得不重要，从而可能不会进行维护。  
+而一些新的东西的加入对你是否有用，需要自己去评估。
+
+
 **Read this in other languages: [English](README-cn.md).**  
 
 **详细文档:[https://zvt.readthedocs.io/en/latest/](https://zvt.readthedocs.io/en/latest/)**
@@ -31,6 +42,10 @@ python3 -m pip install -U zvt
 ### 使用展示
 
 #### 主界面
+
+#### Dash & Plotly UI
+> 适用于回测和研究，不太适用于实时行情和用户交互
+
 安装完成后，在命令行下输入 zvt
 ```shell
 zvt
@@ -45,6 +60,54 @@ zvt
 > 系统的核心概念是可视化的，界面的名称与其一一对应，因此也是统一可扩展的。
 
 > 你可以在你喜欢的ide里编写和运行策略，然后运行界面查看其相关的标的，因子，信号和净值展示。
+
+#### 前后端分离的UI
+> 更灵活和可扩展，更适合于处理实时行情和用户交互，结合ZVT的动态tag系统，提供了一种量化结合主观的交易方式
+
+- 初始化tag系统
+
+运行以下脚本:  
+
+https://github.com/zvtvz/zvt/blob/master/src/zvt/tasks/init_tag_system.py
+https://github.com/zvtvz/zvt/blob/master/src/zvt/tasks/stock_pool_runner.py
+https://github.com/zvtvz/zvt/blob/master/src/zvt/tasks/qmt_data_runner.py
+https://github.com/zvtvz/zvt/blob/master/src/zvt/tasks/qmt_tick_runner.py
+
+- 安装 uvicorn
+```shell
+pip install uvicorn
+```
+- 运行 zvt server
+
+安装完成后，在命令行下输入 zvt_server
+```shell
+zvt_server
+```
+或者从代码运行:
+https://github.com/zvtvz/zvt/blob/master/src/zvt/zvt_server.py
+
+- api 文档 
+
+open [http://127.0.0.1:8090/docs](http://127.0.0.1:8090/docs)
+
+- 部署前端
+
+前端代码: https://github.com/zvtvz/zvt_ui
+
+修改前端环境文件:
+https://github.com/zvtvz/zvt_ui/blob/main/.env
+
+设置 {your server IP}, 即zvt_server服务的地址
+
+```text
+NEXT_PUBLIC_SERVER = {your server IP}
+```
+
+然后参考前端的readme启动前端服务
+
+打开 [http://127.0.0.1:3000/trade](http://127.0.0.1:3000/trade)
+
+<p align="center"><img src='https://raw.githubusercontent.com/zvtvz/zvt/master/docs/imgs/big-picture.jpg'/></p>
 
 #### 见证奇迹的时刻
 ```
@@ -324,7 +387,7 @@ zvt_context.schemas为系统支持的schema,schema即表结构，即数据，其
 
 * 源码
 
-[domain](https://github.com/zvtvz/zvt/tree/master/zvt/domain)里的文件为schema的定义，查看相应字段的注释即可。
+[domain](https://github.com/zvtvz/zvt/tree/master/src/zvt/domain)里的文件为schema的定义，查看相应字段的注释即可。
 
 通过以上的例子，你应该掌握了统一的记录数据的方法：
 
@@ -473,8 +536,8 @@ if __name__ == '__main__':
 
 下面以技术因子为例对**计算流程**进行说明:
 ```
-In [7]: from zvt.factors.technical_factor import *
-In [8]: factor = BullFactor(codes=['000338','601318'],start_timestamp='2019-01-01',end_timestamp='2019-06-10', transformer=MacdTransformer())
+In [7]: from zvt.factors import *
+In [8]: factor = BullFactor(codes=['000338','601318'],start_timestamp='2019-01-01',end_timestamp='2019-06-10', transformer=MacdTransformer(count_live_dead=True))
 ```
 ### data_df
 data_df为factor的原始数据，即通过query_data从数据库读取到的数据,为一个**二维索引**DataFrame
@@ -499,7 +562,7 @@ stock_sz_000338 2019-06-03    1d  11.04  stock_sz_000338_2019-06-03  stock_sz_00
 ```
 
 ### factor_df
-factor_df为transformer对data_df进行计算后得到的数据，设计因子即对[transformer](https://github.com/zvtvz/zvt/blob/master/zvt/factors/factor.py#L18)进行扩展，例子中用的是MacdTransformer()。
+factor_df为transformer对data_df进行计算后得到的数据，设计因子即对[transformer](https://github.com/zvtvz/zvt/blob/master/src/zvt/contract/factor.py#L34)进行扩展，例子中用的是MacdTransformer()。
 
 ```
 In [12]: factor.factor_df
@@ -523,7 +586,7 @@ stock_sz_000338 2019-06-03    1d  11.04  stock_sz_000338_2019-06-03  stock_sz_00
 
 ### result_df
 result_df为可用于选股器的**二维索引**DataFrame，通过对data_df或factor_df计算来实现。
-该例子在计算macd之后，利用factor_df,黄白线在0轴上为True,否则为False，[具体代码](https://github.com/zvtvz/zvt/blob/master/zvt/factors/technical_factor.py#L56)
+该例子在计算macd之后，利用factor_df,黄白线在0轴上为True,否则为False，[具体代码](https://github.com/zvtvz/zvt/blob/master/src/zvt/factors/technical_factor.py#L56)
 
 ```
 In [14]: factor.result_df
@@ -583,18 +646,13 @@ filter_result 为 True 或 False, score_result 取值为 0 到 1。
 ```
 > 通用的配置方式为: init_config(current_config=zvt_config, **kv)
 
-### 下载历史数据（可选）
-百度网盘: https://pan.baidu.com/s/1kHAxGSxx8r5IBHe5I7MAmQ 提取码: yb6c
+### 历史数据
 
-google drive: https://drive.google.com/drive/folders/17Bxijq-PHJYrLDpyvFAm5P6QyhKL-ahn?usp=sharing
+ZVT支持数据增量更新，用户之间可以共享历史数据，这样可以节省很多时间。
 
-里面包含joinquant的日/周线后复权数据，个股估值，基金及其持仓数据，eastmoney的财务等数据。
+#### 数据源
+> 新UI实时行情的计算基于QMT数据源，需要开通的同学可联系作者。
 
-把下载的数据解压到正式环境的data_path（所有db文件放到该目录下，没有层级结构）
-
-数据的更新是增量的，下载历史数据只是为了节省时间，全部自己更新也是可以的。
-
-#### 注册聚宽(可选)
 项目数据支持多provider，在数据schema一致性的基础上，可根据需要进行选择和扩展，目前支持新浪，东财，交易所等免费数据。
 
 #### 数据的设计上是让provider来适配schema,而不是反过来，这样即使某provider不可用了，换一个即可，不会影响整个系统的使用。
@@ -602,8 +660,6 @@ google drive: https://drive.google.com/drive/folders/17Bxijq-PHJYrLDpyvFAm5P6Qyh
 但免费数据的缺点是显而易见的:不稳定，爬取清洗数据耗时耗力，维护代价巨大，且随时可能不可用。  
 个人建议：如果只是学习研究，可以使用免费数据；如果是真正有意投身量化，还是选一家可靠的数据提供商。
 
-项目支持聚宽的数据，可戳以下链接申请使用（目前可免费使用一年）  
-https://www.joinquant.com/default/index/sdk?channelId=953cbf5d1b8683f81f0c40c9d4265c0d
 
 > 项目中大部分的免费数据目前都是比较稳定的，且做过严格测试，特别是东财的数据，可放心使用
 
@@ -649,7 +705,7 @@ pycharm导入工程(推荐,你也可以使用其他ide)，然后pytest跑测试�
 
 ## 联系方式  
 
-加微信进群:foolcage 添加暗号:zvt  
+目前只接受开户朋友的进群申请，微信号 foolcage  
 <img src="https://raw.githubusercontent.com/zvtvz/zvt/master/docs/imgs/wechat.jpeg" width="25%" alt="Wechat">
 
 ------

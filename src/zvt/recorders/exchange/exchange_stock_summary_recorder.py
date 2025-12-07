@@ -6,7 +6,7 @@ from zvt.contract.recorder import TimestampsDataRecorder
 from zvt.domain import Index
 from zvt.domain.misc import StockSummary
 from zvt.recorders.consts import DEFAULT_SH_SUMMARY_HEADER
-from zvt.utils.time_utils import to_time_str
+from zvt.utils.time_utils import to_date_time_str
 from zvt.utils.utils import to_float
 
 
@@ -28,6 +28,7 @@ class ExchangeStockSummaryRecorder(TimestampsDataRecorder):
         exchanges=None,
         entity_id=None,
         entity_ids=None,
+        code=None,
         day_data=False,
         entity_filters=None,
         ignore_failed=True,
@@ -42,6 +43,7 @@ class ExchangeStockSummaryRecorder(TimestampsDataRecorder):
             exchanges,
             entity_id,
             entity_ids,
+            code,
             ["000001"],
             day_data,
             entity_filters,
@@ -58,7 +60,7 @@ class ExchangeStockSummaryRecorder(TimestampsDataRecorder):
     def record(self, entity, start, end, size, timestamps):
         json_results = []
         for timestamp in timestamps:
-            timestamp_str = to_time_str(timestamp)
+            timestamp_str = to_date_time_str(timestamp)
             url = self.url.format(timestamp_str)
             response = requests.get(url=url, headers=DEFAULT_SH_SUMMARY_HEADER)
 
@@ -92,5 +94,7 @@ class ExchangeStockSummaryRecorder(TimestampsDataRecorder):
 
 if __name__ == "__main__":
     ExchangeStockSummaryRecorder().run()
+
+
 # the __all__ is generated
 __all__ = ["ExchangeStockSummaryRecorder"]

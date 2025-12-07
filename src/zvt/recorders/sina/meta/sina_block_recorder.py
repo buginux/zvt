@@ -162,6 +162,6 @@ if __name__ == "__main__":
     SinaBlockRecorder().run()
     recorder = SinaChinaBlockStockRecorder(codes=["new_cbzz"])
     recorder.run()
-    
+
 # the __all__ is generated
 __all__ = ['SinaBlockRecorder', 'SinaChinaBlockStockRecorder', 'SwChinaBlockRecorder', 'SwChinaBlockStockRecorder']

@@ -5,9 +5,9 @@ import logging
 import pandas as pd
 import requests
 
-from zvt.api import china_stock_code_to_id
+from zvt.api.utils import china_stock_code_to_id
 from zvt.recorders.consts import DEFAULT_HEADER
-from zvt.utils import now_pd_timestamp
+from zvt.utils.time_utils import now_pd_timestamp
 
 logger = logging.getLogger(__name__)
 
@@ -45,5 +45,7 @@ def get_cs_index_stock(code, timestamp, name=None):
 if __name__ == "__main__":
     df = get_cs_index_stock(code="000001", name="上证指数", timestamp=now_pd_timestamp())
     print(df)
+
+
 # the __all__ is generated
 __all__ = ["get_cs_index_stock"]

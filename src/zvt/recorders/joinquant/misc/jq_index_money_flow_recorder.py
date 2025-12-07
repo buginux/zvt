@@ -5,7 +5,8 @@ from zvt.contract import IntervalLevel
 from zvt.contract.api import df_to_db
 from zvt.contract.recorder import FixedCycleDataRecorder
 from zvt.domain import IndexMoneyFlow, Index, StockMoneyFlow
-from zvt.utils import pd_is_not_null, to_time_str
+from zvt.utils.pd_utils import pd_is_not_null
+from zvt.utils.time_utils import to_date_time_str
 
 
 class JoinquantIndexMoneyFlowRecorder(FixedCycleDataRecorder):
@@ -34,6 +35,7 @@ class JoinquantIndexMoneyFlowRecorder(FixedCycleDataRecorder):
         level=IntervalLevel.LEVEL_1DAY,
         kdata_use_begin_time=False,
         one_day_trading_minutes=24 * 60,
+        return_unfinished=False,
     ) -> None:
         # 上证指数，深证成指，创业板指，科创板
         support_codes = ["000001", "399001", "399006", "000688"]
@@ -59,6 +61,7 @@ class JoinquantIndexMoneyFlowRecorder(FixedCycleDataRecorder):
             level,
             kdata_use_begin_time,
             one_day_trading_minutes,
+            return_unfinished,
         )
 
     def record(self, entity, start, end, size, timestamps):
@@ -88,7 +91,7 @@ class JoinquantIndexMoneyFlowRecorder(FixedCycleDataRecorder):
             for timestamp, df in g:
                 se = pd.Series(
                     {
-                        "id": "{}_{}".format(entity.id, to_time_str(timestamp)),
+                        "id": "{}_{}".format(entity.id, to_date_time_str(timestamp)),
                         "entity_id": entity.id,
                         "timestamp": timestamp,
                         "code": entity.code,
@@ -126,5 +129,7 @@ class JoinquantIndexMoneyFlowRecorder(FixedCycleDataRecorder):
 
 if __name__ == "__main__":
     JoinquantIndexMoneyFlowRecorder(start_timestamp="2020-12-01").run()
+
+
 # the __all__ is generated
 __all__ = ["JoinquantIndexMoneyFlowRecorder"]

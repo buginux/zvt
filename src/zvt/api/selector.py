@@ -4,10 +4,19 @@ import logging
 import pandas as pd
 from sqlalchemy import or_, and_
 
-from zvt.api.kdata import default_adjust_type, get_kdata_schema
-from zvt.contract import IntervalLevel
-from zvt.domain import DragonAndTiger, Stock1dHfqKdata
-from zvt.utils import to_pd_timestamp, next_date, current_date, pd_is_not_null
+from zvt.api.kdata import default_adjust_type, get_kdata_schema, get_latest_kdata_date, get_recent_trade_dates
+from zvt.contract import IntervalLevel, AdjustType
+from zvt.contract.api import get_entity_ids, get_entity_schema
+from zvt.domain import DragonAndTiger, Stock1dHfqKdata, Stock, LimitUpInfo, StockQuote, Stock1mQuote
+from zvt.utils.pd_utils import pd_is_not_null
+from zvt.utils.time_utils import (
+    to_pd_timestamp,
+    date_time_by_interval,
+    current_date,
+    next_date,
+    to_date_time_str,
+    TIME_FORMAT_MINUTE2,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +31,127 @@ SMALL_CAP = 4000000000
 IN_DEPS = ["dep1", "dep2", "dep3", "dep4", "dep5"]
 # 卖出入榜单
 OUT_DEPS = ["dep_1", "dep_2", "dep_3", "dep_4", "dep_5"]
+
+
+def get_entity_ids_by_filter(
+    provider="em",
+    ignore_delist=True,
+    ignore_st=False,
+    ignore_new_stock=False,
+    target_date=None,
+    entity_type="stock",
+    entity_ids=None,
+    ignore_bj=False,
+    exchange=None,
+):
+    entity_schema = get_entity_schema(entity_type=entity_type)
+
+    filters = []
+    if ignore_new_stock:
+        if not target_date:
+            target_date = current_date()
+        pre_year = date_time_by_interval(target_date, -365)
+        filters += [entity_schema.timestamp <= pre_year]
+    else:
+        if target_date:
+            filters += [entity_schema.timestamp <= target_date]
+    if ignore_delist:
+        filters += [
+            entity_schema.name.not_like("%退%"),
+            entity_schema.name.not_like("%PT%"),
+        ]
+
+    if ignore_st:
+        filters += [
+            entity_schema.name.not_like("%ST%"),
+            entity_schema.name.not_like("%*ST%"),
+        ]
+    if entity_schema == Stock and ignore_bj:
+        filters += [entity_schema.exchange != "bj"]
+
+    if exchange:
+        filters += [entity_schema.exchange == exchange]
+
+    return get_entity_ids(provider=provider, entity_schema=entity_schema, filters=filters, entity_ids=entity_ids)
+
+
+def get_limit_up_stocks(timestamp):
+    df = LimitUpInfo.query_data(start_timestamp=timestamp, end_timestamp=timestamp, columns=[LimitUpInfo.entity_id])
+    if pd_is_not_null(df):
+        return df["entity_id"].tolist()
+
+
+def get_recent_trending_stocks(adjust_type=AdjustType.qfq, provider="em", recent_days=20):
+    kdata_schema = get_kdata_schema("stock", level=IntervalLevel.LEVEL_1DAY, adjust_type=adjust_type)
+    recent_dates = get_recent_trade_dates(entity_type="stock", days_count=recent_days)
+    start_date = recent_dates[0]
+
+    df = kdata_schema.query_data(
+        provider=provider,
+        filters=[
+            kdata_schema.timestamp >= start_date,
+            kdata_schema.turnover >= 500000000,
+            kdata_schema.change_pct > 0.08,
+        ],
+        index="entity_id",
+    )
+    entity_ids = list(set(df["entity_id"].tolist()))
+
+    kdata_df = kdata_schema.query_data(
+        provider=provider,
+        entity_ids=entity_ids,
+        filters=[kdata_schema.timestamp >= date_time_by_interval(start_date, -400)],
+        index=["entity_id", "timestamp"],
+    )
+
+    from zvt.factors.algorithm import MaTransformer
+
+    t = MaTransformer(windows=[10, 20, 30, 60, 120, 250])
+    ma_df = t.transform(kdata_df)
+
+    end_date = ma_df["timestamp"].max()
+    result_df = ma_df[
+        (ma_df["timestamp"] == end_date)
+        & (ma_df["turnover"] >= 500000000)
+        & (ma_df["close"] > ma_df["ma20"])
+        & (ma_df["ma10"] > ma_df["ma20"])
+        & (ma_df["ma20"] > ma_df["ma30"])
+        & (ma_df["ma30"] > ma_df["ma60"])
+        & (ma_df["ma60"] > ma_df["ma120"])
+        & (ma_df["ma120"] > ma_df["ma250"])
+    ]
+    return result_df["entity_id"].tolist()
+
+
+def get_recent_active_stocks(adjust_type=AdjustType.qfq, provider="em", recent_days=10):
+    kdata_schema = get_kdata_schema("stock", level=IntervalLevel.LEVEL_1DAY, adjust_type=adjust_type)
+    recent_dates = get_recent_trade_dates(entity_type="stock", days_count=recent_days)
+    start_date = recent_dates[0]
+
+    df = kdata_schema.query_data(
+        provider=provider,
+        filters=[kdata_schema.timestamp >= start_date, kdata_schema.is_limit_up == True],
+        index="entity_id",
+    )
+    entity_ids = list(set(df["entity_id"].tolist()))
+
+    kdata_df = kdata_schema.query_data(
+        provider=provider,
+        entity_ids=entity_ids,
+        filters=[kdata_schema.timestamp >= start_date],
+        index=["entity_id", "timestamp"],
+    )
+
+    from zvt.factors.algorithm import MaTransformer
+
+    t = MaTransformer(windows=[10])
+    ma_df = t.transform(kdata_df)
+
+    end_date = ma_df["timestamp"].max()
+    result_df = ma_df[
+        (ma_df["close"] > ma_df["ma10"]) & (ma_df["timestamp"] == end_date) & (ma_df["turnover"] >= 500000000)
+    ]
+    return result_df["entity_id"].tolist()
 
 
 def get_dragon_and_tigger_player(start_timestamp, end_timestamp=None, direction="in"):
@@ -85,7 +215,7 @@ def get_player_performance(start_timestamp, end_timestamp=None, days=5, players=
     df = df[~df.index.duplicated(keep="first")]
     records = []
     for entity_id, timestamp in df.index:
-        end_date = next_date(timestamp, days + round(days + days * 2 / 5 + 30))
+        end_date = date_time_by_interval(timestamp, days + round(days + days * 2 / 5 + 30))
         kdata = Stock1dHfqKdata.query_data(
             entity_id=entity_id,
             start_timestamp=timestamp,
@@ -162,9 +292,9 @@ def get_players(entity_id, start_timestamp, end_timestamp, provider="em", direct
 
 
 def get_good_players(timestamp=current_date(), recent_days=400, intervals=(3, 5, 10)):
-    end_timestamp = next_date(timestamp, -intervals[-1] - 30)
+    end_timestamp = date_time_by_interval(timestamp, -intervals[-1] - 30)
     # recent year
-    start_timestamp = next_date(end_timestamp, -recent_days)
+    start_timestamp = date_time_by_interval(end_timestamp, -recent_days)
     print(f"{start_timestamp} to {end_timestamp}")
     # 最近一年牛x的营业部
     players = get_big_players(start_timestamp=start_timestamp, end_timestamp=end_timestamp)
@@ -200,7 +330,7 @@ def get_entity_list_by_cap(
         if retry_times == 0:
             return []
         return get_entity_list_by_cap(
-            timestamp=next_date(timestamp, 1),
+            timestamp=next_date(timestamp),
             cap_start=cap_start,
             cap_end=cap_end,
             entity_type=entity_type,
@@ -210,64 +340,217 @@ def get_entity_list_by_cap(
         )
 
 
-def get_big_cap_stock(timestamp, provider="em"):
+def get_big_cap_stock(timestamp, provider="em", adjust_type=None):
     return get_entity_list_by_cap(
-        timestamp=timestamp, cap_start=BIG_CAP, cap_end=None, entity_type="stock", provider=provider
+        timestamp=timestamp,
+        cap_start=BIG_CAP,
+        cap_end=None,
+        entity_type="stock",
+        provider=provider,
+        adjust_type=adjust_type,
     )
 
 
-def get_middle_cap_stock(timestamp, provider="em"):
+def get_middle_cap_stock(timestamp, provider="em", adjust_type=None):
     return get_entity_list_by_cap(
-        timestamp=timestamp, cap_start=MIDDLE_CAP, cap_end=BIG_CAP, entity_type="stock", provider=provider
+        timestamp=timestamp,
+        cap_start=MIDDLE_CAP,
+        cap_end=BIG_CAP,
+        entity_type="stock",
+        provider=provider,
+        adjust_type=adjust_type,
     )
 
 
-def get_small_cap_stock(timestamp, provider="em"):
+def get_small_cap_stock(timestamp, provider="em", adjust_type=None):
     return get_entity_list_by_cap(
-        timestamp=timestamp, cap_start=SMALL_CAP, cap_end=MIDDLE_CAP, entity_type="stock", provider=provider
+        timestamp=timestamp,
+        cap_start=SMALL_CAP,
+        cap_end=MIDDLE_CAP,
+        entity_type="stock",
+        provider=provider,
+        adjust_type=adjust_type,
     )
 
 
-def get_mini_cap_stock(timestamp, provider="em"):
+def get_mini_cap_stock(timestamp, provider="em", adjust_type=None):
     return get_entity_list_by_cap(
-        timestamp=timestamp, cap_start=None, cap_end=SMALL_CAP, entity_type="stock", provider=provider
+        timestamp=timestamp,
+        cap_start=None,
+        cap_end=SMALL_CAP,
+        entity_type="stock",
+        provider=provider,
+        adjust_type=adjust_type,
     )
 
 
-def get_mini_and_small_stock(timestamp, provider="em"):
+def get_mini_and_small_stock(timestamp, provider="em", adjust_type=None):
     return get_entity_list_by_cap(
-        timestamp=timestamp, cap_start=None, cap_end=MIDDLE_CAP, entity_type="stock", provider=provider
+        timestamp=timestamp,
+        cap_start=None,
+        cap_end=MIDDLE_CAP,
+        entity_type="stock",
+        provider=provider,
+        adjust_type=adjust_type,
     )
 
 
-def get_middle_and_big_stock(timestamp, provider="em"):
+def get_middle_and_big_stock(timestamp, provider="em", adjust_type=None):
     return get_entity_list_by_cap(
-        timestamp=timestamp, cap_start=MIDDLE_CAP, cap_end=None, entity_type="stock", provider=provider
+        timestamp=timestamp,
+        cap_start=MIDDLE_CAP,
+        cap_end=None,
+        entity_type="stock",
+        provider=provider,
+        adjust_type=adjust_type,
     )
+
+
+def get_limit_up_today():
+    df = StockQuote.query_data(filters=[StockQuote.is_limit_up], columns=[StockQuote.entity_id])
+    if pd_is_not_null(df):
+        return df["entity_id"].to_list()
+
+
+def get_top_up_today(n=100):
+    df = StockQuote.query_data(columns=[StockQuote.entity_id], order=StockQuote.change_pct.desc(), limit=n)
+    if pd_is_not_null(df):
+        return df["entity_id"].to_list()
+
+
+def get_shoot_today(up_change_pct=0.03, down_change_pct=-0.03, interval=1):
+    latest = Stock1mQuote.query_data(
+        columns=[Stock1mQuote.time], return_type="df", limit=1, order=Stock1mQuote.time.desc()
+    )
+    latest_time = int(latest["time"][0])
+
+    # interval minutes
+    start_time = latest_time - ((interval + 1) * 60 * 1000)
+
+    filters = [Stock1mQuote.time > start_time, Stock1mQuote.turnover_rate > 0.02]
+    df = Stock1mQuote.query_data(
+        filters=filters,
+        columns=[
+            Stock1mQuote.entity_id,
+            Stock1mQuote.is_limit_up,
+            Stock1mQuote.near_limit_up,
+            Stock1mQuote.time,
+            Stock1mQuote.price,
+        ],
+        return_type="df",
+    )
+
+    if not pd_is_not_null(df):
+        logger.warning(
+            f"no data found in Stock1mQuote from {to_date_time_str(start_time,fmt=TIME_FORMAT_MINUTE2)} to {to_date_time_str(latest_time,fmt=TIME_FORMAT_MINUTE2)}"
+        )
+        return None, None
+
+    up_list = []
+    up_df = df[(~df["is_limit_up"]) & df["near_limit_up"]]
+    if pd_is_not_null(up_df):
+        up_list = up_df["entity_id"]
+        up_list = list(set(up_list.to_list()))
+
+    df.sort_values(by=["entity_id", "time"], inplace=True)
+
+    g_df = df.groupby("entity_id").agg(
+        first_price=("price", "first"),
+        last_price=("price", "last"),
+        last_time=("time", "last"),
+        change_pct=("price", lambda x: (x.iloc[-1] - x.iloc[0]) / x.iloc[0]),
+    )
+    up = g_df[g_df["change_pct"] >= up_change_pct]
+    down = g_df[g_df["change_pct"] <= down_change_pct]
+
+    if up_list:
+        up_list = list(set(up_list + up.index.tolist()))
+    else:
+        up_list = up.index.tolist()
+
+    return up_list, down.index.tolist()
+
+
+def get_top_vol(
+    entity_ids,
+    target_date=None,
+    limit=500,
+    provider="qmt",
+):
+    if provider == "qmt":
+        df = StockQuote.query_data(
+            entity_ids=entity_ids,
+            columns=[StockQuote.entity_id],
+            order=StockQuote.turnover.desc(),
+            limit=limit,
+        )
+        return df["entity_id"].to_list()
+    else:
+        if not target_date:
+            target_date = get_latest_kdata_date(provider="em", entity_type="stock", adjust_type=AdjustType.hfq)
+        df = Stock1dHfqKdata.query_data(
+            provider="em",
+            filters=[Stock1dHfqKdata.timestamp == to_pd_timestamp(target_date)],
+            entity_ids=entity_ids,
+            columns=[Stock1dHfqKdata.entity_id],
+            order=Stock1dHfqKdata.turnover.desc(),
+            limit=limit,
+        )
+        return df["entity_id"].to_list()
+
+
+def get_top_down_today(n=100):
+    df = StockQuote.query_data(columns=[StockQuote.entity_id], order=StockQuote.change_pct.asc(), limit=n)
+    if pd_is_not_null(df):
+        return df["entity_id"].to_list()
+
+
+def get_limit_down_today():
+    df = StockQuote.query_data(filters=[StockQuote.is_limit_down], columns=[StockQuote.entity_id])
+    if pd_is_not_null(df):
+        return df["entity_id"].to_list()
+
+
+def get_high_days_count(entity_ids=None, target_date=current_date(), days_count=10, high_days_count=None):
+    recent_days = get_recent_trade_dates(entity_type="stock", target_date=target_date, days_count=days_count)
+
+    if recent_days:
+        filters = [LimitUpInfo.timestamp >= recent_days[0]]
+    else:
+        filters = [LimitUpInfo.timestamp >= target_date]
+
+    if high_days_count:
+        filters = filters + [LimitUpInfo.high_days_count >= high_days_count]
+
+    df = LimitUpInfo.query_data(
+        entity_ids=entity_ids,
+        filters=filters,
+        columns=[LimitUpInfo.timestamp, LimitUpInfo.entity_id, LimitUpInfo.high_days, LimitUpInfo.high_days_count],
+    )
+    df_sorted = df.sort_values(by=["entity_id", "timestamp"])
+    df_latest = df_sorted.drop_duplicates(subset="entity_id", keep="last").reset_index(drop=True)
+
+    entity_id_to_high_days_map = df_latest.set_index("entity_id")["high_days"].to_dict()
+    return entity_id_to_high_days_map
 
 
 if __name__ == "__main__":
-    # target_date = get_latest_kdata_date(provider="em", entity_type="stock", adjust_type=AdjustType.hfq)
-    # big = get_big_cap_stock(timestamp=target_date)
-    # print(len(big))
-    # print(big)
-    # middle = get_middle_cap_stock(timestamp=target_date)
-    # print(len(middle))
-    # print(middle)
-    # small = get_small_cap_stock(timestamp=target_date)
-    # print(len(small))
-    # print(small)
-    # mini = get_mini_cap_stock(timestamp=target_date)
-    # print(len(mini))
-    # print(mini)
-    df = get_player_performance(start_timestamp="2022-01-01")
-    print(df)
+    # stocks = get_top_vol(entity_ids=None, provider="em")
+    # assert len(stocks) == 500
+    # Index1dKdata.record_data(provider="em",sleeping_time=0)
+    # print(get_recent_trade_dates(days_count=10))
+    # print(get_high_days_count(days_count=3, high_days_count=3))
+    print(get_shoot_today())
+
 # the __all__ is generated
 __all__ = [
+    "get_entity_ids_by_filter",
+    "get_limit_up_stocks",
     "get_dragon_and_tigger_player",
     "get_big_players",
     "get_player_performance",
     "get_player_success_rate",
+    "get_players",
     "get_good_players",
     "get_entity_list_by_cap",
     "get_big_cap_stock",

@@ -449,6 +449,6 @@ if __name__ == "__main__":
     # init_log('blance_sheet.log')
     recorder = ChinaStockBalanceSheetRecorder(codes=["002572"])
     recorder.run()
-    
+
 # the __all__ is generated
 __all__ = ["ChinaStockBalanceSheetRecorder"]

@@ -5,9 +5,9 @@ from typing import List
 
 from zvt.autocode.templates import all_tpls
 from zvt.contract import IntervalLevel, AdjustType
-from zvt.utils import now_pd_timestamp
 from zvt.utils.file_utils import list_all_files
 from zvt.utils.git_utils import get_git_user_name, get_git_user_email
+from zvt.utils.time_utils import now_pd_timestamp
 
 logger = logging.getLogger(__name__)
 
@@ -95,14 +95,15 @@ def fill_package(dir_path: str):
             pkg_file = os.path.join(dir_path, "__init__.py")
             if not os.path.exists(pkg_file):
                 package_template = "# -*- coding: utf-8 -*-\n"
-                with open(pkg_file, "w") as outfile:
+                with open(pkg_file, "w", encoding="utf-8") as outfile:
                     outfile.write(package_template)
 
 
 def gen_exports(
     dir_path="./domain",
     gen_flag="# the __all__ is generated",
-    export_from_package=True,
+    export_from_package=False,
+    exclude_modules=None,
     export_modules=None,
     excludes=None,
     export_var=False,
@@ -118,7 +119,7 @@ def gen_exports(
         exports = []
         lines = []
         # read and generate __all__
-        with open(file) as fp:
+        with open(file, encoding="utf-8") as fp:
             line = fp.readline()
             while line:
                 if line.startswith(gen_flag):
@@ -131,6 +132,17 @@ def gen_exports(
                     exports.append(export)
                 line = fp.readline()
         print(f"{file}:{exports}")
+        end_empty_lines_count = 0
+        for i in range(-1, -len(lines) - 1, -1):
+            if not lines[i].isspace():
+                break
+            end_empty_lines_count = end_empty_lines_count + 1
+        lines = lines[: len(lines) - end_empty_lines_count]
+
+        if not lines:
+            lines.append("# -*- coding: utf-8 -*-#")
+
+        lines.append("\n\n")
         lines.append(gen_flag)
         lines.append("\n")
         exports_str = f"__all__ = {exports}"
@@ -149,6 +161,8 @@ def gen_exports(
                 dir_path = os.path.dirname(file)
                 modules = all_sub_modules(dir_path)
                 if modules:
+                    if exclude_modules:
+                        modules = set(modules) - set(exclude_modules)
                     if export_modules:
                         modules = set(modules) & set(export_modules)
                     lines.append(
@@ -162,7 +176,7 @@ def gen_exports(
                     lines.append("\n")
 
         # write with __all__
-        with open(file, mode="w") as fp:
+        with open(file, mode="w", encoding="utf-8") as fp:
             fp.writelines(lines)
 
 
@@ -233,7 +247,7 @@ register_schema(providers={providers_str}, db_name="{table_name}", schema_base=K
 
 """
             # generate the schema
-            with open(os.path.join(base_path, f"{table_name}.py"), "w") as outfile:
+            with open(os.path.join(base_path, f"{table_name}.py"), "w", encoding="utf-8") as outfile:
                 outfile.write(schema_template)
 
         # generate the package
@@ -241,7 +255,7 @@ register_schema(providers={providers_str}, db_name="{table_name}", schema_base=K
         if not os.path.exists(pkg_file):
             package_template = """# -*- coding: utf-8 -*-
 """
-            with open(pkg_file, "w") as outfile:
+            with open(pkg_file, "w", encoding="utf-8") as outfile:
                 outfile.write(package_template)
 
     # generate exports

@@ -2,12 +2,9 @@
 import logging
 import numbers
 from decimal import *
-from enum import Enum
 from urllib import parse
 
 import pandas as pd
-
-from zvt.utils.time_utils import to_time_str
 
 getcontext().prec = 16
 
@@ -70,6 +67,15 @@ def pct_to_float(the_str, default=None):
         return default
 
 
+def float_to_pct(input_float: float) -> str:
+    # Convert the float to a percentage and format it to two decimal places
+    return f"{input_float * 100:.2f}%"
+
+
+def format_number_to_yi(number):
+    return f"{number / 1e8:.2f}亿"
+
+
 def json_callback_param(the_str):
     json_str = the_str[the_str.index("(") + 1 : the_str.rindex(")")].replace("null", "None")
     return eval(json_str)
@@ -129,16 +135,6 @@ def read_csv(f, encoding, sep=None, na_values=None):
             f.seek(0)
             continue
     return None
-
-
-def marshal_object_for_ui(object):
-    if isinstance(object, Enum):
-        return object.value
-
-    if isinstance(object, pd.Timestamp):
-        return to_time_str(object)
-
-    return object
 
 
 def chrome_copy_header_to_dict(src):
@@ -219,6 +215,72 @@ def set_one_and_only_one(**kwargs):
     return True
 
 
+def flatten_list(input_list):
+    if not input_list:
+        return input_list
+    result = []
+    for item in input_list:
+        if isinstance(item, list):
+            result.extend(item)
+        elif isinstance(item, dict):
+            result.append(item)
+        else:
+            result.append(item)
+    return result
+
+
+def to_str(str_or_list):
+    if not str_or_list:
+        return None
+    if isinstance(str_or_list, str):
+        return str_or_list
+    if isinstance(str_or_list, list):
+        str_list = [str(item) for item in str_or_list]
+        return ";".join(str_list)
+
+
+def compare_dicts(dict1, dict2):
+    # Check if both dictionaries are None
+    if dict1 is None and dict2 is None:
+        return True
+
+    # Check if only one dictionary is None
+    if dict1 is None or dict2 is None:
+        return False
+
+    # Check if the keys are the same
+    if set(dict1.keys()) != set(dict2.keys()):
+        return False
+
+    # Check if the values are the same for each key
+    for key in dict1:
+        if dict1[key] != dict2[key]:
+            return False
+
+    # If all keys and values match, return True
+    return True
+
+
+def fill_dict(src, dst):
+    """
+    Fills items from the source dictionary (src) into the destination dictionary (dst)
+    if the keys are not already present in dst.
+
+    Args:
+        src (dict): The source dictionary to copy items from.
+        dst (dict): The destination dictionary to copy items into.
+
+    Returns:
+        dict: The updated destination dictionary with new items from the source dictionary.
+    """
+    if not src:
+        return dst
+    for key, value in src.items():
+        if key not in dst:
+            dst[key] = value
+    return dst
+
+
 if __name__ == "__main__":
     url = url_unquote(
         "https://datacenter.eastmoney.com/securities/api/data/get?type=RPT_DAILYBILLBOARD_DETAILS&sty=ALL&source=DataCenter&client=WAP&p=1&ps=20&sr=-1,1&st=TRADE_DATE,SECURITY_CODE&filter=(TRADE_DATE%3E=%272022-04-01%27)(TRADE_DATE%3C=%272022-04-29%27)(MARKET=%22SH%22)&?v=05160638952989893"
@@ -234,11 +296,11 @@ __all__ = [
     "add_func_to_value",
     "to_float",
     "pct_to_float",
+    "float_to_pct",
     "json_callback_param",
     "fill_domain_from_dict",
     "SUPPORT_ENCODINGS",
     "read_csv",
-    "marshal_object_for_ui",
     "chrome_copy_header_to_dict",
     "to_positive_number",
     "multiple_number",
@@ -246,4 +308,9 @@ __all__ = [
     "iterate_with_step",
     "url_unquote",
     "parse_url_params",
+    "set_one_and_only_one",
+    "flatten_list",
+    "to_str",
+    "compare_dicts",
+    "fill_dict",
 ]

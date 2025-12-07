@@ -4,7 +4,7 @@ from sqlalchemy.orm import declarative_base
 
 from zvt.contract import Portfolio, PortfolioStockHistory
 from zvt.contract.register import register_entity, register_schema
-from zvt.utils import now_pd_timestamp
+from zvt.utils.time_utils import now_pd_timestamp
 
 FundMetaBase = declarative_base()
 
@@ -55,5 +55,7 @@ class FundStock(FundMetaBase, PortfolioStockHistory):
 
 
 register_schema(providers=["joinquant"], db_name="fund_meta", schema_base=FundMetaBase)
+
+
 # the __all__ is generated
 __all__ = ["Fund", "FundStock"]

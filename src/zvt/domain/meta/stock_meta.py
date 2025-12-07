@@ -13,6 +13,19 @@ StockMetaBase = declarative_base()
 @register_entity(entity_type="stock")
 class Stock(StockMetaBase, TradableEntity):
     __tablename__ = "stock"
+    #: 流通市值
+    float_cap = Column(Float)
+    #: 总市值
+    total_cap = Column(Float)
+
+    #: 股东上次更新时间
+    holder_modified_date = Column(DateTime)
+    #: 控股股东
+    controlling_holder = Column(String)
+    #: 实际控制人
+    controlling_holder_parent = Column(String)
+    #: 前十大股东占比
+    top_ten_ratio = Column(Float)
 
 
 #: 个股详情
@@ -48,7 +61,7 @@ class StockDetail(StockMetaBase, TradableEntity):
     net_winning_rate = Column(Float)
 
 
-register_schema(providers=['joinquant', 'eastmoney', 'exchange', 'sina', 'sw', 'em'], db_name='stock_meta',
+register_schema(providers=['eastmoney', 'em', 'exchange', 'joinquant', 'qmt', 'sina', 'sw'], db_name='stock_meta',
                 schema_base=StockMetaBase)
 
 # the __all__ is generated

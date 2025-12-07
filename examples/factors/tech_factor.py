@@ -7,7 +7,7 @@ import pandas as pd
 from zvt.contract import AdjustType, TradableEntity, IntervalLevel
 from zvt.contract.factor import Transformer, Accumulator
 from zvt.domain import Stock
-from zvt.factors import MacdFactor
+from zvt.factors.macd.macd_factor import MacdFactor
 from zvt.factors.transformers import CrossMaTransformer
 
 
@@ -29,7 +29,7 @@ class BullAndUpFactor(MacdFactor):
         level: Union[str, IntervalLevel] = IntervalLevel.LEVEL_1DAY,
         category_field: str = "entity_id",
         time_field: str = "timestamp",
-        computing_window: int = None,
+        keep_window: int = None,
         keep_all_timestamp: bool = False,
         fill_method: str = "ffill",
         effective_number: int = None,
@@ -63,7 +63,7 @@ class BullAndUpFactor(MacdFactor):
             level,
             category_field,
             time_field,
-            computing_window,
+            keep_window,
             keep_all_timestamp,
             fill_method,
             effective_number,

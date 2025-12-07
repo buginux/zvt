@@ -3,7 +3,7 @@ from typing import Type
 
 from zvt.contract import Mixin
 from zvt.domain import ReportPeriod
-from zvt.utils import pd_is_not_null
+from zvt.utils.pd_utils import pd_is_not_null
 from zvt.utils.time_utils import to_pd_timestamp, now_pd_timestamp
 
 
@@ -45,8 +45,11 @@ def get_recent_report_period(the_date=now_pd_timestamp(), step=0):
 
 
 def get_china_exchange(code):
-    if code >= "333333":
+    code_ = int(code)
+    if 800000 >= code_ >= 600000:
         return "sh"
+    elif code_ >= 400000:
+        return "bj"
     else:
         return "sz"
 

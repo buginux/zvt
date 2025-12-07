@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-
-import datetime
 import email
 import json
 import logging
@@ -13,10 +11,10 @@ import requests
 
 from zvt import zvt_config
 
+logger = logging.getLogger(__name__)
+
 
 class Informer(object):
-    logger = logging.getLogger(__name__)
-
     def send_message(self, to_user, title, body, **kwargs):
         pass
 
@@ -27,38 +25,53 @@ class EmailInformer(Informer):
         self.ssl = ssl
 
     def send_message_(self, to_user, title, body, **kwargs):
+        if (
+            not zvt_config["smtp_host"]
+            or not zvt_config["smtp_port"]
+            or not zvt_config["email_username"]
+            or not zvt_config["email_password"]
+        ):
+            logger.warning(f"Please set smtp_host/smtp_port/email_username/email_password in ~/zvt-home/config.json")
+            return
         host = zvt_config["smtp_host"]
         port = zvt_config["smtp_port"]
-        if self.ssl:
-            try:
-                smtp_client = smtplib.SMTP_SSL(host=host, port=port)
-            except:
-                smtp_client = smtplib.SMTP_SSL()
-        else:
-            try:
-                smtp_client = smtplib.SMTP(host=host, port=port)
-            except:
-                smtp_client = smtplib.SMTP()
 
-        smtp_client.connect(host=host, port=port)
-        smtp_client.login(zvt_config["email_username"], zvt_config["email_password"])
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = Header(title).encode()
-        msg["From"] = "{} <{}>".format(Header("zvt").encode(), zvt_config["email_username"])
-        if type(to_user) is list:
-            msg["To"] = ", ".join(to_user)
-        else:
-            msg["To"] = to_user
-        msg["Message-id"] = email.utils.make_msgid()
-        msg["Date"] = email.utils.formatdate()
-
-        plain_text = MIMEText(body, _subtype="plain", _charset="UTF-8")
-        msg.attach(plain_text)
-
+        smtp_client = None
         try:
+            if self.ssl:
+                try:
+                    smtp_client = smtplib.SMTP_SSL(host=host, port=port)
+                except:
+                    smtp_client = smtplib.SMTP_SSL()
+            else:
+                try:
+                    smtp_client = smtplib.SMTP(host=host, port=port)
+                except:
+                    smtp_client = smtplib.SMTP()
+
+            smtp_client.connect(host=host, port=port)
+            smtp_client.login(zvt_config["email_username"], zvt_config["email_password"])
+            msg = MIMEMultipart("alternative")
+            msg["Subject"] = Header(title).encode()
+            msg["From"] = "{} <{}>".format(Header("zvt").encode(), zvt_config["email_username"])
+            if type(to_user) is list:
+                msg["To"] = ", ".join(to_user)
+            else:
+                msg["To"] = to_user
+            msg["Message-id"] = email.utils.make_msgid()
+            msg["Date"] = email.utils.formatdate()
+
+            plain_text = MIMEText(body, _subtype="plain", _charset="UTF-8")
+            msg.attach(plain_text)
             smtp_client.sendmail(zvt_config["email_username"], to_user, msg.as_string())
         except Exception as e:
-            self.logger.exception("send email failed", e)
+            logger.exception("send email failed", e)
+        finally:
+            if smtp_client:
+                try:
+                    smtp_client.quit()
+                except Exception as e:
+                    logger.exception("smtp_client quit failed", e)
 
     def send_message(self, to_user, title, body, sub_size=20, with_sender=True, **kwargs):
         if type(to_user) is list and sub_size:
@@ -94,12 +107,12 @@ class WechatInformer(Informer):
 
     def refresh_token(self):
         resp = requests.get(self.GET_TOKEN_URL)
-        self.logger.info("refresh_token resp.status_code:{}, resp.text:{}".format(resp.status_code, resp.text))
+        logger.info("refresh_token resp.status_code:{}, resp.text:{}".format(resp.status_code, resp.text))
 
         if resp.status_code == 200 and resp.json() and "access_token" in resp.json():
             self.token = resp.json()["access_token"]
         else:
-            self.logger.exception("could not refresh_token")
+            logger.exception("could not refresh_token")
 
     def send_price_notification(self, to_user, security_name, current_price, change_pct):
         the_json = self._format_price_notification(to_user, security_name, current_price, change_pct)
@@ -107,10 +120,10 @@ class WechatInformer(Informer):
 
         resp = requests.post(self.SEND_MSG_URL.format(self.token), the_data)
 
-        self.logger.info("send_price_notification resp:{}".format(resp.text))
+        logger.info("send_price_notification resp:{}".format(resp.text))
 
         if resp.json() and resp.json()["errcode"] == 0:
-            self.logger.info("send_price_notification to user:{} data:{} success".format(to_user, the_json))
+            logger.info("send_price_notification to user:{} data:{} success".format(to_user, the_json))
 
     def _format_price_notification(self, to_user, security_name, current_price, change_pct):
         if change_pct > 0:
@@ -145,35 +158,30 @@ class WechatInformer(Informer):
 
         return the_json
 
-class WeWorkInformer(Informer):
-    robot_url = 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=38ebcf2b-8b10-4bd6-af90-5602637ac291'
 
-    def send_message(self, msg):
-        body = self.body_with_content(msg)
+class QiyeWechatBot(Informer):
+    def __init__(self, token=None) -> None:
+        self.token = token
 
-        requests.post(self.robot_url, data=body)
+    def send_message(self, content):
+        if not self.token:
+            if not zvt_config["qiye_wechat_bot_token"]:
+                logger.warning(f"Please set qiye_wechat_bot_token in ~/zvt-home/config.json")
+                return
+            self.token = zvt_config["qiye_wechat_bot_token"]
 
-    def send_finished_message(self, finished_type):
-        date_str = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        self.send_message(f'{date_str}\n{finished_type} 下载完成...')
-
-    @staticmethod
-    def body_with_content(content):
         msg = {
-            'msgtype': 'markdown',
-            'markdown': {'content': content}
+            "msgtype": "text",
+            "text": {"content": content},
         }
+        requests.post(f"https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key={self.token}", json=msg)
 
-        return json.dumps(msg)
 
-
-if __name__ == '__main__':
-    email_action = EmailInformer()
-    email_action.send_message(["5533061@qq.com", "2315983623@qq.com"], "helo", "just a test", sub_size=20)
-
+if __name__ == "__main__":
     # weixin_action = WechatInformer()
     # weixin_action.send_price_notification(to_user='oRvNP0XIb9G3g6a-2fAX9RHX5--Q', security_name='BTC/USDT',
     #                                       current_price=1000, change_pct='0.5%')
-
+    bot = QiyeWechatBot()
+    bot.send_message(content="test")
 # the __all__ is generated
 __all__ = ["Informer", "EmailInformer", "WechatInformer"]

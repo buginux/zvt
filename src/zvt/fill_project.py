@@ -12,10 +12,11 @@ def gen_kdata_schemas():
     # A股行情
     gen_kdata_schema(
         pkg="zvt",
-        providers=["joinquant", "em", "baostock"],
+        providers=["baostock", "em", "joinquant", "qmt"],
         entity_type="stock",
-        levels=[level for level in IntervalLevel if level != IntervalLevel.LEVEL_TICK],
-        adjust_types=[AdjustType.bfq, AdjustType.hfq, AdjustType.qfq],
+        levels=level for level in IntervalLevel if level not in (IntervalLevel.LEVEL_L2_QUOTE,
+     IntervalLevel.LEVEL_TICK),
+        adjust_types=[None, AdjustType.bfq, AdjustType.hfq, AdjustType.qfq],
         entity_in_submodule=True,
     )
     # 中国期货
@@ -78,22 +79,29 @@ def gen_kdata_schemas():
         pkg="zvt", providers=["sina"], entity_type="etf", levels=[IntervalLevel.LEVEL_1DAY], entity_in_submodule=True
     )
 
-    # etf行情
+    # currency行情
     gen_kdata_schema(
         pkg="zvt", providers=["em"], entity_type="currency", levels=[IntervalLevel.LEVEL_1DAY], entity_in_submodule=True
     )
 
 
 if __name__ == "__main__":
-    # zip_dir(ZVT_TEST_DATA_PATH, zip_file_name=DATA_SAMPLE_ZIP_PATH)
-    # gen_exports("contract", export_modules=["schema"])
+    # gen_exports("api")
+    # gen_exports("broker")
+    # gen_exports("common")
+    # gen_exports("contract", export_from_package=True, export_modules=["schema"])
+    gen_exports("domain", export_from_package=True)
+    # gen_exports("factors", export_from_package=True)
+    # gen_exports("trading")
+
     # gen_exports("ml")
-    # gen_exports("utils")
+    # gen_exports("utils", export_from_package=False, export_var=True)
     # gen_exports('informer')
-    gen_exports("api")
     # gen_exports('trader')
     # gen_exports('autocode')
-    # gen_exports("ml")
+    # gen_exports("zhdate")
+    gen_exports("recorders", export_from_package=True, exclude_modules=["qmt"])
+    # gen_exports("tag", export_from_package=False)
+    # gen_exports("sso", export_from_package=False)
     # gen_kdata_schemas()
-    # gen_exports("recorders")
-    # gen_exports("domain")
+    # zip_dir(ZVT_TEST_DATA_PATH, zip_file_name=DATA_SAMPLE_ZIP_PATH)

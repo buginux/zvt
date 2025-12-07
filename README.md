@@ -8,6 +8,15 @@
 [![codecov.io](https://codecov.io/github/zvtvz/zvt/coverage.svg?branch=master)](https://codecov.io/github/zvtvz/zvt)
 [![Downloads](https://pepy.tech/badge/zvt/month)](https://pepy.tech/project/zvt)
 
+**The origin of ZVT**
+
+[The Three Major Principles of Stock Trading](https://mp.weixin.qq.com/s/FoFR63wFSQIE_AyFubkZ6Q)
+
+**Declaration**
+
+This project does not currently guarantee any backward compatibility, so please upgrade with caution.    
+As the author's thoughts evolve, some things that were once considered important may become less so, and thus may not be maintained.    
+Whether the addition of some new elements will be useful to you needs to be assessed by yourself.
 
 **Read this in other languages: [中文](README-cn.md).**  
 
@@ -19,6 +28,10 @@ python3 -m pip install -U zvt
 ```
 
 ### Main ui
+
+#### Dash & Plotly UI
+
+> It's good for backtest and research, but it is not applicable for real-time market data and user interaction.
 
 After the installation is complete, enter zvt on the command line
 ```shell
@@ -34,6 +47,55 @@ open [http://127.0.0.1:8050/](http://127.0.0.1:8050/)
 > The core concept of the system is visual, and the name of the interface corresponds to it one-to-one, so it is also uniform and extensible.
 
 > You can write and run the strategy in your favorite ide, and then view its related targets, factor, signal and performance on the UI.
+
+#### Rest api and standalone UI
+> It is more flexible and more scalable, more suitable for handling real-time market data and user interaction. 
+> Combined with the dynamic tag system provided by ZVT, it offers a trading approach that combines AI with human intervention.
+
+- Init tag system
+
+run following scripts:  
+
+https://github.com/zvtvz/zvt/blob/master/src/zvt/tasks/init_tag_system.py
+https://github.com/zvtvz/zvt/blob/master/src/zvt/tasks/stock_pool_runner.py
+https://github.com/zvtvz/zvt/blob/master/src/zvt/tasks/qmt_data_runner.py
+https://github.com/zvtvz/zvt/blob/master/src/zvt/tasks/qmt_tick_runner.py
+
+- Install uvicorn
+```shell
+pip install uvicorn
+```
+- Run zvt server
+
+After the installation is complete, enter zvt_server on the command line
+```shell
+zvt_server
+```
+Or run it from source code:
+https://github.com/zvtvz/zvt/blob/master/src/zvt/zvt_server.py
+
+- Check the api docs 
+
+open [http://127.0.0.1:8090/docs](http://127.0.0.1:8090/docs)
+
+- Deploy the front end service
+
+Front end source code: https://github.com/zvtvz/zvt_ui
+
+Change the env file:
+https://github.com/zvtvz/zvt_ui/blob/main/.env
+
+Set {your server IP} to zvt_server IP
+
+```text
+NEXT_PUBLIC_SERVER = {your server IP}
+```
+
+Then refer to the frontend's README to start the frontend service.
+
+open [http://127.0.0.1:3000/trade](http://127.0.0.1:3000/trade)
+
+<p align="center"><img src='https://raw.githubusercontent.com/zvtvz/zvt/master/docs/imgs/big-picture.jpg'/></p>
 
 ### Behold, the power of zvt:
 ```
@@ -309,7 +371,7 @@ type the schema. and press tab to show its fields or .help()
 
 * source code
 
-Schemas defined in [domain](https://github.com/zvtvz/zvt/tree/master/zvt/domain)
+Schemas defined in [domain](https://github.com/zvtvz/zvt/tree/master/src/zvt/domain)
 
 From above examples, you should know the unified way of recording data:
 
@@ -392,7 +454,7 @@ Two modes to write strategy:
 
 At a certain time, calculate conditions according to the events, buy and sell
 
-* formal (正式的)
+* formal
 
 The calculation model of the two-dimensional index and multi-entity
 
@@ -463,8 +525,8 @@ Now it's time to introduce the two-dimensional index multi-entity calculation mo
 
 Takes technical factors as an example to illustrate the **calculation process**:
 ```
-In [7]: from zvt.factors.technical_factor import *
-In [8]: factor = BullFactor(codes=['000338','601318'],start_timestamp='2019-01-01',end_timestamp='2019-06-10', transformer=MacdTransformer())
+In [7]: from zvt.factors import *
+In [8]: factor = BullFactor(codes=['000338','601318'],start_timestamp='2019-01-01',end_timestamp='2019-06-10', transformer=MacdTransformer(count_live_dead=True))
 ```
 ### data_df
 
@@ -490,7 +552,7 @@ stock_sz_000338 2019-06-03    1d  11.04  stock_sz_000338_2019-06-03  stock_sz_00
 ```
 
 ### factor_df
-**two-dimensional index** DataFrame which calculating using data_df by [transformer](https://github.com/zvtvz/zvt/blob/master/zvt/factors/factor.py#L18)
+**two-dimensional index** DataFrame which calculating using data_df by [transformer](https://github.com/zvtvz/zvt/blob/master/src/zvt/contract/factor.py#L34)
 e.g., MacdTransformer.
 ```
 In [12]: factor.factor_df
@@ -516,7 +578,7 @@ stock_sz_000338 2019-06-03    1d  11.04  stock_sz_000338_2019-06-03  stock_sz_00
 **two-dimensional index** DataFrame which calculating using factor_df or(and) data_df.
 It's used by TargetSelector.
 
-e.g.,[macd](https://github.com/zvtvz/zvt/blob/master/zvt/factors/technical_factor.py#L56)
+e.g.,[macd](https://github.com/zvtvz/zvt/blob/master/src/zvt/factors/technical_factor.py#L56)
 
 ```
 In [14]: factor.result_df
@@ -574,21 +636,14 @@ Combining the stock picker and backtesting, the whole process is as follows:
 ```
 >  config others this way: init_config(current_config=zvt_config, **kv)
 
-### History data（optional）
-baidu: https://pan.baidu.com/s/1kHAxGSxx8r5IBHe5I7MAmQ code: yb6c
+### History data
 
-google drive: https://drive.google.com/drive/folders/17Bxijq-PHJYrLDpyvFAm5P6QyhKL-ahn?usp=sharing
+ZVT supports incremental data updates, and sharing historical data among users is encouraged for time-saving efficiency
 
-It contains daily/weekly post-restoration data, stock valuations, fund and its holdings data, financial data and other data.
+#### Data providers
+> The new UI's real-time quotes are based on the QMT data source. To obtain access, please contact the author.
 
-Unzip the downloaded data to the data_path of the your environment (all db files are placed in this directory, there is no hierarchical structure)
-
-The data could be updated incrementally. Downloading historical data is just to save time. It is also possible to update all by yourself.
-
-#### Joinquant(optional)
 the data could be updated from different provider, this make the system stable.
-
-https://www.joinquant.com/default/index/sdk?channelId=953cbf5d1b8683f81f0c40c9d4265c0d
 
 > add other providers， [Data extension tutorial](https://zvtvz.github.io/zvt/#/data_extending)
 
@@ -600,7 +655,7 @@ https://www.joinquant.com/default/index/sdk?channelId=953cbf5d1b8683f81f0c40c9d4
 git clone https://github.com/zvtvz/zvt.git
 ```
 
-set up virtual env(python>=3.6),install requirements
+set up virtual env(python>=3.8),install requirements
 ```
 pip3 install -r requirements.txt
 pip3 install pytest
@@ -608,7 +663,7 @@ pip3 install pytest
 
 ### Tests
 ```shell
-pytest ./tests
+pytest ./tests --ignore=tests/recorders/ 
 ```
 
 <p align="center"><img src='https://raw.githubusercontent.com/zvtvz/zvt/master/docs/imgs/pytest.jpg'/></p>

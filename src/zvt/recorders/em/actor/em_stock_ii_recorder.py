@@ -10,7 +10,7 @@ from zvt.contract.recorder import TimestampsDataRecorder
 from zvt.domain import Stock, ActorMeta
 from zvt.domain.actor.stock_actor import StockInstitutionalInvestorHolder
 from zvt.recorders.em.em_api import get_ii_holder_report_dates, get_ii_holder, actor_type_to_org_type
-from zvt.utils import to_pd_timestamp, to_time_str
+from zvt.utils.time_utils import to_pd_timestamp, to_date_time_str
 
 
 # {'END_DATE': '2021-03-31 00:00:00',
@@ -50,7 +50,7 @@ class EMStockIIRecorder(TimestampsDataRecorder):
 
     def record(self, entity, start, end, size, timestamps):
         for timestamp in timestamps:
-            the_date = to_time_str(timestamp)
+            the_date = to_date_time_str(timestamp)
             self.logger.info(f"to {entity.code} {the_date}")
             for actor_type in ActorType:
                 if actor_type == ActorType.private_equity or actor_type == ActorType.individual:
@@ -107,5 +107,7 @@ class EMStockIIRecorder(TimestampsDataRecorder):
 
 if __name__ == "__main__":
     EMStockIIRecorder(codes=["000562"]).run()
+
+
 # the __all__ is generated
 __all__ = ["EMStockIIRecorder"]

@@ -1010,6 +1010,7 @@ class IncomeStatementSeasonal(IncomeStatementCommon, FinanceBase):
 
 register_schema(providers=['eastmoney'], db_name='finance', schema_base=FinanceBase, entity_type='stock')
 
+
 # the __all__ is generated
 __all__ = ['FinanceFactor', 'BalanceSheet', 'IncomeStatement', 'IncomeStatementSeasonal',
            'CashFlowStatement', 'CashFlowStatementSeasonal']

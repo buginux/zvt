@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import json
 import logging
 import os
 import platform
@@ -11,6 +12,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.ext.declarative import DeclarativeMeta
 from sqlalchemy.orm import Query
 from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.sql.expression import text
 
 from zvt import zvt_env
 from zvt.contract import IntervalLevel
@@ -49,14 +51,23 @@ def get_db_engine(
     if data_schema:
         db_name = _get_db_name(data_schema=data_schema)
 
-    db_path = os.path.join(data_path, "{}_{}.db?check_same_thread=False".format(provider, db_name))
+    provider_path = os.path.join(data_path, provider)
+    if not os.path.exists(provider_path):
+        os.makedirs(provider_path)
+    db_path = os.path.join(provider_path, "{}_{}.db?check_same_thread=False".format(provider, db_name))
 
     engine_key = "{}_{}".format(provider, db_name)
     db_engine = zvt_context.db_engine_map.get(engine_key)
     if not db_engine:
-        db_engine = create_engine("sqlite:///" + db_path, echo=False)
+        db_engine = create_engine(
+            "sqlite:///" + db_path, echo=False, json_serializer=lambda obj: json.dumps(obj, ensure_ascii=False)
+        )
         zvt_context.db_engine_map[engine_key] = db_engine
     return db_engine
+
+
+def get_providers() -> List[str]:
+    return zvt_context.providers
 
 
 def get_schemas(provider: str) -> List[DeclarativeMeta]:
@@ -95,6 +106,7 @@ def get_db_session(provider: str, db_name: str = None, data_schema: object = Non
         return get_db_session_factory(provider, db_name, data_schema)()
 
     session = zvt_context.sessions.get(session_key)
+    # FIXME: should not maintain global session
     if not session:
         session = get_db_session_factory(provider, db_name, data_schema)()
         zvt_context.sessions[session_key] = session
@@ -119,6 +131,9 @@ def get_db_session_factory(provider: str, db_name: str = None, data_schema: obje
         session = sessionmaker()
         zvt_context.db_session_map[session_key] = session
     return session
+
+
+DBSession = get_db_session_factory
 
 
 def get_entity_schema(entity_type: str) -> Type[TradableEntity]:
@@ -161,6 +176,7 @@ def common_filter(
     filters=None,
     order=None,
     limit=None,
+    distinct=None,
     time_field="timestamp",
 ):
     """
@@ -193,6 +209,8 @@ def common_filter(
         query = query.order_by(time_col.asc())
     if limit:
         query = query.limit(limit)
+    if distinct:
+        query = query.distinct(distinct)
 
     return query
 
@@ -217,7 +235,7 @@ def del_data(data_schema: Type[Mixin], filters: List = None, provider=None):
     session.commit()
 
 
-def get_one(data_schema, id: str, provider: str = None, session: Session = None):
+def get_by_id(data_schema, id: str, provider: str = None, session: Session = None):
     """
     get one record by id from data schema
 
@@ -238,6 +256,13 @@ def get_one(data_schema, id: str, provider: str = None, session: Session = None)
     return session.query(data_schema).get(id)
 
 
+def _row2dict(row):
+    d = {}
+    for column in row.__table__.columns:
+        d[column.name] = getattr(row, column.name)
+    return d
+
+
 def get_data(
     data_schema: Type[Mixin],
     ids: List[str] = None,
@@ -256,6 +281,7 @@ def get_data(
     session: Session = None,
     order=None,
     limit: int = None,
+    distinct=None,
     index: Union[str, list] = None,
     drop_index_col=False,
     time_field: str = "timestamp",
@@ -348,6 +374,7 @@ def get_data(
         filters=filters,
         order=order,
         limit=limit,
+        distinct=distinct,
         time_field=time_field,
     )
 
@@ -360,7 +387,10 @@ def get_data(
     elif return_type == "domain":
         return query.all()
     elif return_type == "dict":
-        return [item.__dict__ for item in query.all()]
+        domains = query.all()
+        return [_row2dict(item) for item in domains]
+    elif return_type == "select":
+        return query.selectable
 
 
 def data_exist(session, schema, id):
@@ -375,7 +405,7 @@ def data_exist(session, schema, id):
     return session.query(exists().where(and_(schema.id == id))).scalar()
 
 
-def get_data_count(data_schema, filters=None, session=None):
+def get_data_count(data_schema, filters=None, provider=None, session=None):
     """
     get record count basing on the filters
 
@@ -384,12 +414,15 @@ def get_data_count(data_schema, filters=None, session=None):
     :param session:
     :return:
     """
+    if not session:
+        session = get_db_session(provider=provider, data_schema=data_schema)
+
     query = session.query(data_schema)
     if filters:
         for filter in filters:
             query = query.filter(filter)
 
-    count_q = query.statement.with_only_columns([func.count(data_schema.id)]).order_by(None)
+    count_q = query.statement.with_only_columns(func.count(data_schema.id)).order_by(None)
     count = session.execute(count_q).scalar()
     return count
 
@@ -457,8 +490,11 @@ def df_to_db(
     data_schema: DeclarativeMeta,
     provider: str,
     force_update: bool = False,
-    sub_size: int = 5000,
+    sub_size: int = 8000,
     drop_duplicates: bool = True,
+    dtype=None,
+    session=None,
+    need_check=True,
 ) -> object:
     """
     store the df to db
@@ -478,8 +514,6 @@ def df_to_db(
         logger.warning(f"remove duplicated:{df[df.duplicated()]}")
         df = df.drop_duplicates(subset="id", keep="last")
 
-    db_engine = get_db_engine(provider, data_schema=data_schema)
-
     schema_cols = get_schema_columns(data_schema)
     cols = set(df.columns.tolist()) & set(schema_cols)
 
@@ -487,7 +521,8 @@ def df_to_db(
         print("wrong cols")
         return 0
 
-    df = df[list(cols)]
+    cols = list(cols)
+    df = df[cols]
 
     size = len(df)
 
@@ -503,30 +538,38 @@ def df_to_db(
 
     saved = 0
 
+    if not session:
+        session = get_db_session(provider=provider, data_schema=data_schema)
+
     for step in range(step_size):
         df_current = df.iloc[sub_size * step : sub_size * (step + 1)]
-        if force_update:
-            session = get_db_session(provider=provider, data_schema=data_schema)
-            ids = df_current["id"].tolist()
-            if len(ids) == 1:
-                sql = f'delete from `{data_schema.__tablename__}` where id = "{ids[0]}"'
+
+        if need_check:
+            if force_update:
+                ids = df_current["id"].tolist()
+                if len(ids) == 1:
+                    sql = text(f'delete from `{data_schema.__tablename__}` where id = "{ids[0]}"')
+                else:
+                    sql = text(f"delete from `{data_schema.__tablename__}` where id in {tuple(ids)}")
+
+                session.execute(sql)
             else:
-                sql = f"delete from `{data_schema.__tablename__}` where id in {tuple(ids)}"
-
-            session.execute(sql)
-            session.commit()
-
-        else:
-            current = get_data(
-                data_schema=data_schema, columns=[data_schema.id], provider=provider, ids=df_current["id"].tolist()
-            )
-            if pd_is_not_null(current):
-                df_current = df_current[~df_current["id"].isin(current["id"])]
+                current = get_data(
+                    session=session,
+                    data_schema=data_schema,
+                    columns=[data_schema.id],
+                    provider=provider,
+                    ids=df_current["id"].tolist(),
+                )
+                if pd_is_not_null(current):
+                    df_current = df_current[~df_current["id"].isin(current["id"])]
 
         if pd_is_not_null(df_current):
             saved = saved + len(df_current)
-            df_current.to_sql(data_schema.__tablename__, db_engine, index=False, if_exists="append")
-
+            df_current.to_sql(
+                data_schema.__tablename__, session.connection(), index=False, if_exists="append", dtype=dtype
+            )
+        session.commit()
     return saved
 
 
@@ -613,7 +656,13 @@ def get_entities(
 
 
 def get_entity_ids(
-    entity_type="stock", entity_schema: TradableEntity = None, exchanges=None, codes=None, provider=None, filters=None
+    entity_type="stock",
+    entity_schema: TradableEntity = None,
+    exchanges=None,
+    codes=None,
+    provider=None,
+    filters=None,
+    entity_ids=None,
 ):
     """
     get entity ids by the arguments
@@ -624,6 +673,7 @@ def get_entity_ids(
     :param codes:
     :param provider:
     :param filters:
+    :param entity_ids:
     :return:
     """
     df = get_entities(
@@ -633,6 +683,7 @@ def get_entity_ids(
         codes=codes,
         provider=provider,
         filters=filters,
+        entity_ids=entity_ids,
     )
     if pd_is_not_null(df):
         return df["entity_id"].to_list()
@@ -641,10 +692,12 @@ def get_entity_ids(
 
 if __name__ == "__main__":
     print(get_entities(entity_type="block"))
+
+
 # the __all__ is generated
 __all__ = [
-    "_get_db_name",
     "get_db_engine",
+    "get_providers",
     "get_schemas",
     "get_db_session",
     "get_db_session_factory",
@@ -653,7 +706,7 @@ __all__ = [
     "get_schema_columns",
     "common_filter",
     "del_data",
-    "get_one",
+    "get_by_id",
     "get_data",
     "data_exist",
     "get_data_count",

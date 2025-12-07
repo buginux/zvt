@@ -4,46 +4,35 @@ from typing import List, Tuple
 import pandas as pd
 
 from zvt.contract import IntervalLevel
-from zvt.factors import TargetSelector, GoldCrossFactor
+from zvt.contract.factor import Factor
+from zvt.factors.macd.macd_factor import GoldCrossFactor
 from zvt.trader import TradingSignal
 from zvt.trader.trader import StockTrader
 
 # 依赖数据
 # data_schema: Stock1dHfqKdata
 # provider: joinquant
-from zvt.utils import next_date
+from zvt.utils.time_utils import date_time_by_interval
 
 
 class MacdDayTrader(StockTrader):
-    def init_selectors(
+    def init_factors(
         self, entity_ids, entity_schema, exchanges, codes, start_timestamp, end_timestamp, adjust_type=None
     ):
         # 日线策略
-        start_timestamp = next_date(start_timestamp, -50)
-        day_selector = TargetSelector(
-            entity_ids=entity_ids,
-            entity_schema=entity_schema,
-            exchanges=exchanges,
-            codes=codes,
-            start_timestamp=start_timestamp,
-            end_timestamp=end_timestamp,
-            long_threshold=0.7,
-            level=IntervalLevel.LEVEL_1DAY,
-            provider="joinquant",
-        )
-        day_gold_cross_factor = GoldCrossFactor(
-            entity_ids=entity_ids,
-            entity_schema=entity_schema,
-            exchanges=exchanges,
-            codes=codes,
-            start_timestamp=start_timestamp,
-            end_timestamp=end_timestamp,
-            provider="joinquant",
-            level=IntervalLevel.LEVEL_1DAY,
-        )
-        day_selector.add_factor(day_gold_cross_factor)
-
-        self.selectors.append(day_selector)
+        start_timestamp = date_time_by_interval(start_timestamp, -50)
+        return [
+            GoldCrossFactor(
+                entity_ids=entity_ids,
+                entity_schema=entity_schema,
+                exchanges=exchanges,
+                codes=codes,
+                start_timestamp=start_timestamp,
+                end_timestamp=end_timestamp,
+                provider="joinquant",
+                level=IntervalLevel.LEVEL_1DAY,
+            )
+        ]
 
     def on_profit_control(self):
         # 覆盖该函数做止盈 止损
@@ -56,10 +45,6 @@ class MacdDayTrader(StockTrader):
     def on_trading_signals(self, trading_signals: List[TradingSignal]):
         # 批量处理交易信号，比如连接交易接口，发邮件，微信推送等
         super().on_trading_signals(trading_signals)
-
-    def on_trading_signal(self, trading_signal: TradingSignal):
-        # 处理交易信号，比如连接交易接口，发邮件，微信推送等
-        super().on_trading_signal(trading_signal)
 
     def on_trading_open(self, timestamp):
         # 开盘自定义逻辑
@@ -85,11 +70,11 @@ class MacdDayTrader(StockTrader):
         # 空头仓位管理
         return super().short_position_control()
 
-    def on_targets_filtered(
-        self, timestamp, level, selector: TargetSelector, long_targets: List[str], short_targets: List[str]
+    def on_factor_targets_filtered(
+        self, timestamp, level, factor: Factor, long_targets: List[str], short_targets: List[str]
     ) -> Tuple[List[str], List[str]]:
         # 过滤某级别选出的 标的
-        return super().on_targets_filtered(timestamp, level, selector, long_targets, short_targets)
+        return super().on_factor_targets_filtered(timestamp, level, factor, long_targets, short_targets)
 
 
 if __name__ == "__main__":

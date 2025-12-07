@@ -5,7 +5,9 @@ import logging
 import os
 import pkgutil
 import pprint
+import shutil
 from logging.handlers import RotatingFileHandler
+from typing import List
 
 import pandas as pd
 import pkg_resources
@@ -62,12 +64,14 @@ def init_log(file_name="zvt.log", log_dir=None, simple_formatter=True):
 os.environ.setdefault("SQLALCHEMY_WARN_20", "1")
 pd.set_option("expand_frame_repr", False)
 pd.set_option("mode.chained_assignment", "raise")
-# pd.set_option('display.max_rows', None)
-# pd.set_option('display.max_columns', None)
+pd.set_option("display.max_rows", None)
+pd.set_option("display.max_columns", None)
 
 zvt_env = {}
 
-zvt_config = {}
+# load default config
+with open(pkg_resources.resource_filename("zvt", "config.json")) as f:
+    zvt_config = json.load(f)
 
 _plugins = {}
 
@@ -79,15 +83,20 @@ def init_env(zvt_home: str, **kwargs) -> dict:
     :param zvt_home: home path for zvt
     """
     data_path = os.path.join(zvt_home, "data")
+    resource_path = os.path.join(zvt_home, "resources")
     tmp_path = os.path.join(zvt_home, "tmp")
     if not os.path.exists(data_path):
         os.makedirs(data_path)
+
+    if not os.path.exists(resource_path):
+        os.makedirs(resource_path)
 
     if not os.path.exists(tmp_path):
         os.makedirs(tmp_path)
 
     zvt_env["zvt_home"] = zvt_home
     zvt_env["data_path"] = data_path
+    zvt_env["resource_path"] = resource_path
     zvt_env["tmp_path"] = tmp_path
 
     # path for storing ui results
@@ -104,12 +113,25 @@ def init_env(zvt_home: str, **kwargs) -> dict:
 
     pprint.pprint(zvt_env)
 
+    init_resources(resource_path=resource_path)
     # init config
     init_config(current_config=zvt_config, **kwargs)
     # init plugin
     # init_plugins()
 
     return zvt_env
+
+
+def init_resources(resource_path, force_overwrite=True):
+    package_name = "zvt"
+    package_dir = pkg_resources.resource_filename(package_name, "resources")
+    from zvt.utils.file_utils import list_all_files
+
+    files: List[str] = list_all_files(package_dir, ext=None)
+    for source_file in files:
+        dst_file = os.path.join(resource_path, source_file[len(package_dir) + 1 :])
+        if force_overwrite or not os.path.exists(dst_file):
+            shutil.copyfile(source_file, dst_file)
 
 
 def init_config(pkg_name: str = None, current_config: dict = None, **kwargs) -> dict:
@@ -128,12 +150,10 @@ def init_config(pkg_name: str = None, current_config: dict = None, **kwargs) -> 
 
     config_path = os.path.join(zvt_env["zvt_home"], config_file)
     if not os.path.exists(config_path):
-        from shutil import copyfile
-
         try:
             sample_config = pkg_resources.resource_filename(pkg_name, "config.json")
             if os.path.exists(sample_config):
-                copyfile(sample_config, config_path)
+                shutil.copyfile(sample_config, config_path)
         except Exception as e:
             logger.warning(f"could not load config.json from package {pkg_name}")
 
@@ -165,6 +185,30 @@ def init_plugins():
     logger.info(f"loaded plugins:{_plugins}")
 
 
+def old_db_to_provider_dir(data_path):
+    files = os.listdir(data_path)
+    for file in files:
+        if file.endswith(".db"):
+            # Split the file name to extract the provider
+            provider = file.split("_")[0]
+
+            # Define the destination directory
+            destination_dir = os.path.join(data_path, provider)
+
+            # Create the destination directory if it doesn't exist
+            if not os.path.exists(destination_dir):
+                os.makedirs(destination_dir)
+
+            # Define the source and destination paths
+            source_path = os.path.join(data_path, file)
+            destination_path = os.path.join(destination_dir, file)
+
+            # Move the file to the destination directory
+            if not os.path.exists(destination_path):
+                shutil.move(source_path, destination_path)
+                logger.info(f"Moved {file} to {destination_dir}")
+
+
 if os.getenv("TESTING_ZVT"):
     init_env(zvt_home=ZVT_TEST_HOME)
 
@@ -176,19 +220,30 @@ if os.getenv("TESTING_ZVT"):
         same = filecmp.cmp(ZVT_TEST_ZIP_DATA_PATH, DATA_SAMPLE_ZIP_PATH)
 
     if not same:
-        from shutil import copyfile
         from zvt.contract import *
         from zvt.utils.zip_utils import unzip
 
-        copyfile(DATA_SAMPLE_ZIP_PATH, ZVT_TEST_ZIP_DATA_PATH)
+        shutil.copyfile(DATA_SAMPLE_ZIP_PATH, ZVT_TEST_ZIP_DATA_PATH)
         unzip(ZVT_TEST_ZIP_DATA_PATH, ZVT_TEST_DATA_PATH)
-
 else:
     init_env(zvt_home=ZVT_HOME)
+
+old_db_to_provider_dir(zvt_env["data_path"])
 
 # register to meta
 import zvt.contract as zvt_contract
 import zvt.recorders as zvt_recorders
 import zvt.factors as zvt_factors
+
+import platform
+
+if platform.system() == "Windows":
+    try:
+        import zvt.recorders.qmt as qmt_recorder
+    except Exception as e:
+        logger.error("QMT not work", e)
+else:
+    logger.warning("QMT need run in Windows!")
+
 
 __all__ = ["zvt_env", "zvt_config", "init_log", "init_env", "init_config", "__version__"]

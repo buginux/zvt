@@ -12,7 +12,8 @@ class Stock15mHfqKdata(KdataBase, StockKdataCommon):
     __tablename__ = 'stock_15m_hfq_kdata'
 
 
-register_schema(providers=['joinquant', 'em', 'baostock'], db_name='stock_15m_hfq_kdata', schema_base=KdataBase, entity_type='stock')
+register_schema(providers=['baostock', 'em', 'joinquant', 'qmt'], db_name='stock_15m_hfq_kdata', schema_base=KdataBase, entity_type='stock')
+
 
 # the __all__ is generated
 __all__ = ['KdataBase', 'Stock15mHfqKdata']
